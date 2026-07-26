@@ -1,7 +1,7 @@
 # gcp-x402
 
-**Query BigQuery public datasets from an agent that has no Google Cloud account —
-pay per query in USDC over [x402](https://x402.org).**
+**Query BigQuery public datasets and provision tightly-scoped demo GCP resources from an agent —
+pay per request in USDC over [x402](https://x402.org).**
 
 BigQuery hosts ~200 free public datasets, but to touch any of them you need a GCP
 project *with a billing account*, because BigQuery bills query compute
@@ -20,6 +20,11 @@ See [DESIGN.md](./DESIGN.md) for the full architecture and threat model.
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows
 ```
+
+The demo also exposes an allowlisted provisioning catalog (`vm.small` and
+`storage.small`) through `GET /api/catalog` and the `provision_*` MCP tools.
+Provisioning is limited to Base Sepolia, `us-central1`, a one-hour rental
+window, and a configurable `$5` maximum GCP exposure.
 
 ## Repo layout
 
@@ -160,6 +165,17 @@ To share one wallet across projects, set `WALLET_FILE` to an absolute path (e.g.
 | `bigquery_estimate`     | Dry-run a query → exact price + bytes, **without paying or running**.   |
 | `bigquery_query`        | Run a query, auto-pay the per-query USDC price, return rows.            |
 | `list_public_datasets`  | Curated list of popular public datasets + current pricing (free).      |
+| `provision_catalog`     | List allowlisted VM and storage profiles.                              |
+| `provision_resource`    | Provision a paid, expiring demo resource.                              |
+| `provision_status`      | Inspect a provisioned resource.                                        |
+| `provision_delete`      | Delete a provisioned resource.                                         |
+
+### Operator dashboard
+
+Set `DASHBOARD_TOKEN` on the proxy deployment, then open `/dashboard` and enter
+the token. The basic dashboard shows total
+transactions, unique payer wallets, service breakdowns, active resources,
+refunds, failures, and outstanding GCP exposure.
 
 ### First-run UX
 

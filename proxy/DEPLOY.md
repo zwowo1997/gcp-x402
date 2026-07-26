@@ -18,7 +18,8 @@ gcloud config set project gcp-x402
 # 1) Enable the APIs the deploy needs
 gcloud services enable \
   run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  bigquery.googleapis.com secretmanager.googleapis.com
+  bigquery.googleapis.com secretmanager.googleapis.com firestore.googleapis.com \
+  compute.googleapis.com storage.googleapis.com cloudtasks.googleapis.com
 
 # 2) Least-privilege runtime service account: can run BigQuery jobs, nothing else.
 gcloud iam service-accounts create gcp-x402-run \
@@ -26,6 +27,24 @@ gcloud iam service-accounts create gcp-x402-run \
 gcloud projects add-iam-policy-binding gcp-x402 \
   --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
   --role="roles/bigquery.jobUser"
+# Demo provisioning permissions. Replace these broad demo roles with a custom
+# role before production; the service never receives IAM or billing privileges.
+gcloud projects add-iam-policy-binding gcp-x402 \
+  --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
+  --role="roles/compute.instanceAdmin.v1"
+gcloud projects add-iam-policy-binding gcp-x402 \
+  --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
+gcloud projects add-iam-policy-binding gcp-x402 \
+  --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+gcloud projects add-iam-policy-binding gcp-x402 \
+  --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
+  --role="roles/cloudtasks.enqueuer"
+
+# Firestore must be initialized once in Native mode (Console or gcloud) and the
+# cleanup queue must exist before provisioning is enabled.
+gcloud tasks queues create gcp-x402-cleanup --location us-central1
 
 # 3) Quote-signing secret in Secret Manager (instead of a plaintext env var)
 printf '%s' "$(openssl rand -base64 48)" | \
@@ -33,6 +52,10 @@ printf '%s' "$(openssl rand -base64 48)" | \
 gcloud secrets add-iam-policy-binding gcp-x402-quote-secret \
   --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
+
+# Create RESOURCE_CAPABILITY_SECRET, CLEANUP_TOKEN, and DASHBOARD_TOKEN in
+# Secret Manager using the same pattern, then grant the runtime service account
+# roles/secretmanager.secretAccessor for each secret.
 ```
 
 ## Deploy (and redeploy)
@@ -48,8 +71,8 @@ gcloud run deploy gcp-x402 \
   --allow-unauthenticated \
   --service-account gcp-x402-run@gcp-x402.iam.gserviceaccount.com \
   --cpu 1 --memory 512Mi --timeout 120 \
-  --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest \
-  --set-env-vars '^|^X402_NETWORK=base-sepolia|PAY_TO_ADDRESS=0x90e4071A1b7b1fc9A5d0b7EA6bEB1174F847F079|FACILITATOR_URL=https://x402.org/facilitator|GCP_PROJECT_ID=gcp-x402|MAX_BYTES_PER_QUERY=1073741824'
+  --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest \
+  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=0x90e4071A1b7b1fc9A5d0b7EA6bEB1174F847F079|FACILITATOR_URL=https://x402.org/facilitator|GCP_PROJECT_ID=gcp-x402|MAX_BYTES_PER_QUERY=1073741824|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|MAX_RENTAL_MINUTES=60|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=us-central1|PUBLIC_BASE_URL=https://YOUR-CLOUD-RUN-URL'
 ```
 
 > The `^|^` prefix tells gcloud to split env vars on `|` instead of `,`, so values
@@ -78,6 +101,10 @@ gcloud run services describe gcp-x402 --region us-central1 --format='value(statu
    gcloud run domain-mappings create --service gcp-x402 --domain <your.domain> --region us-central1
    ```
 3. **Decommission Vercel** once the Cloud Run URL is verified and clients are switched.
+
+4. **Provisioning prerequisite:** replace `PUBLIC_BASE_URL` with the actual service
+   URL from step 1 and redeploy before allowing any provisioning request. The service
+   fails closed if automatic cleanup cannot be queued.
 
 ## Notes
 

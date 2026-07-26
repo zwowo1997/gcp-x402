@@ -5,7 +5,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { estimate, query, listDatasets, walletInfo, walletAddress } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, walletAddress, provisionCatalog, provisionResource, provisionStatus, provisionDelete } from "./client.js";
 import { freshlyCreated } from "./wallet.js";
 import { config } from "./config.js";
 import { runCli } from "./cli.js";
@@ -42,6 +42,11 @@ server.registerTool(
     };
   },
 );
+
+server.registerTool("provision_catalog", { title: "List provisionable GCP resources", description: "List the allowlisted VM and storage profiles, limits, and testing spend caps.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await provisionCatalog(), null, 2) }] }));
+server.registerTool("provision_resource", { title: "Provision a GCP resource", description: "Provision an allowlisted ephemeral GCP resource. The request is paid via x402 and automatically expires.", inputSchema: { resourceId: z.enum(["vm.small", "storage.small"]), durationMinutes: z.number().int().min(1).max(60).optional() } }, async ({ resourceId, durationMinutes }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionResource({ resourceId, durationMinutes }), null, 2) }] }));
+server.registerTool("provision_status", { title: "Get provisioning status", description: "Get the status of a provisioned resource by job ID and its capability returned at creation.", inputSchema: { jobId: z.string(), capability: z.string() } }, async ({ jobId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionStatus(jobId, capability), null, 2) }] }));
+server.registerTool("provision_delete", { title: "Delete a provisioned resource", description: "Delete a provisioned resource using the capability returned at creation.", inputSchema: { jobId: z.string(), capability: z.string() } }, async ({ jobId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionDelete(jobId, capability), null, 2) }] }));
 
 server.registerTool(
   "bigquery_query",

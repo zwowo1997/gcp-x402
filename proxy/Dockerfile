@@ -17,7 +17,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1 \
     GCP_PROJECT_ID=build-placeholder \
     PAY_TO_ADDRESS=0x0000000000000000000000000000000000000000 \
-    QUOTE_SECRET=build-placeholder
+    QUOTE_SECRET=build-placeholder \
+    RESOURCE_CAPABILITY_SECRET=build-placeholder
 RUN npm run build
 
 # 3) minimal runtime image
@@ -31,6 +32,9 @@ ENV NODE_ENV=production \
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+# Next standalone tracing misses JSON configuration files loaded dynamically by
+# the Google Cloud clients (notably Cloud Tasks). Keep this small scope intact.
+COPY --from=build /app/node_modules/@google-cloud ./node_modules/@google-cloud
 EXPOSE 8080
 # No credentials baked in: on Cloud Run, BigQuery auth comes from the attached
 # service account via Application Default Credentials.
