@@ -184,3 +184,29 @@ export async function listDatasets(): Promise<unknown> {
   if (!res.ok) throw new Error(`/api/datasets failed: ${res.status}`);
   return res.json();
 }
+
+export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; durationMinutes?: number; }
+export interface ProvisionResult { jobId: string; resourceId: string; expiresAt: string; maxPriceUsd: number; capability: string; }
+export async function provisionCatalog(): Promise<unknown> {
+  const res = await fetch(new URL("/api/catalog", config.proxyUrl));
+  if (!res.ok) throw new Error(`/api/catalog failed: ${res.status}`);
+  return res.json();
+}
+export async function provisionResource(input: ProvisionRequest): Promise<ProvisionResult> {
+  const res = await paidFetch(new URL("/api/provision", config.proxyUrl), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Provisioning failed (${res.status}): ${text}`);
+  return JSON.parse(text);
+}
+export async function provisionStatus(jobId: string, capability: string): Promise<unknown> {
+  const res = await fetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
+  if (!res.ok) throw new Error(`Provision status failed (${res.status})`);
+  return res.json();
+}
+export async function provisionDelete(jobId: string, capability: string): Promise<unknown> {
+  const res = await fetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { method: "DELETE", headers: { "x-resource-capability": capability } });
+  if (!res.ok) throw new Error(`Provision delete failed (${res.status}): ${await res.text()}`);
+  return res.json();
+}

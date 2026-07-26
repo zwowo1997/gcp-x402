@@ -21,6 +21,7 @@ import {
   settle,
   encodeSettlementHeader,
 } from "@/lib/x402";
+import { recordTransaction } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -157,5 +158,16 @@ export async function POST(req: NextRequest) {
     },
   });
   res.headers.set("X-PAYMENT-RESPONSE", encodeSettlementHeader(settlement));
+  void recordTransaction({
+    id: `bigquery-${sha256(`${sql}:${Date.now()}:${verifyResult.payer ?? "unknown"}`)}`,
+    payer: verifyResult.payer ?? "unknown",
+    service: "bigquery",
+    operation: "query",
+    status: "settled",
+    requestedAmountUsd: quote.priceUsd,
+    settledAmountUsd: quote.priceUsd,
+    createdAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+  });
   return res;
 }

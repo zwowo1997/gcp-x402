@@ -7,7 +7,12 @@ import { base, baseSepolia } from "./networks";
 function req(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var: ${name}`);
-  return v;
+  return v.trim();
+}
+
+function reqWhen(condition: boolean, name: string): string | undefined {
+  if (!condition) return process.env[name]?.trim();
+  return req(name);
 }
 
 function num(name: string, fallback: number): number {
@@ -22,6 +27,18 @@ const networkName = process.env.X402_NETWORK ?? "base-sepolia";
 const network = networkName === "base" ? base : baseSepolia;
 
 export const config = {
+  testMode: process.env.TEST_MODE !== "false",
+  maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
+  maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 5),
+  dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),
+  maxRentalMinutes: num("MAX_RENTAL_MINUTES", 60),
+  /** HMAC secret for opaque resource-management capabilities. */
+  resourceCapabilitySecret: reqWhen(process.env.NODE_ENV === "production", "RESOURCE_CAPABILITY_SECRET"),
+  /** Cloud Tasks configuration is mandatory for paid provisioning in production. */
+  tasksQueue: process.env.CLOUD_TASKS_QUEUE,
+  tasksLocation: process.env.CLOUD_TASKS_LOCATION ?? "us-central1",
+  publicBaseUrl: process.env.PUBLIC_BASE_URL?.replace(/\/$/, ""),
+  cleanupToken: reqWhen(Boolean(process.env.CLOUD_TASKS_QUEUE), "CLEANUP_TOKEN"),
   // --- BigQuery -------------------------------------------------------------
   /** Billing project that runs the jobs (NOT the public-data project). */
   gcpProjectId: req("GCP_PROJECT_ID"),

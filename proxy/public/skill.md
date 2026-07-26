@@ -1,118 +1,118 @@
 ---
-name: bigquery-public-data
+name: gcp-x402
 description: >-
-  Query Google BigQuery public datasets (bigquery-public-data) — USA names,
-  census, Hacker News, GitHub, Stack Overflow, crypto, weather, COVID, Google
-  Trends, and ~200 more — WITHOUT a Google Cloud account or billing setup. Pays
-  per query in USDC via the x402 protocol through a hosted proxy. Use this
-  whenever the user wants to analyze, explore, or pull data from a public
-  dataset, mentions BigQuery, asks a data question that a large public dataset
-  could answer (e.g. "most common baby names", "top Hacker News stories",
-  "Ethereum transaction volume", "US census income by county"), or wants to run
-  SQL against open data — even if they don't say "BigQuery" explicitly.
+  Query allowlisted Google BigQuery public datasets or provision a tightly scoped
+  demo GCP VM or Cloud Storage bucket through gcp-x402. Use when a user asks to
+  analyze public data with BigQuery, inspect the available GCP provisioning
+  catalog, or create, check, or delete a paid temporary GCP resource. Payments
+  use USDC over x402 on Base Sepolia in the current test deployment.
 ---
 
-# Querying BigQuery public datasets (pay-per-query via x402)
+# gcp-x402: paid BigQuery and demo GCP resources
 
-This skill lets you run read-only SQL against Google's `bigquery-public-data`
-datasets without any Google Cloud account. A hosted proxy runs each query and
-charges a tiny per-query fee in USDC (on Base) over the x402 standard. You hold a
-small crypto wallet; the tool pays automatically.
+Use the hosted service at `https://gcp-x402-837831206506.us-central1.run.app`.
+It accepts USDC payments through x402 on **Base Sepolia** and runs the paid work
+using the operator's GCP account. Never treat it as a general-purpose GCP API.
 
-## The tool
+## Commands
 
-Everything runs through one command (no install, no clone — `npx` fetches and
-caches it; the very first call builds for ~60s, then it's fast):
+Run the CLI with this environment variable so it reaches the current deployment:
 
+```bash
+PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
+  npx -y github:zwowo1997/gcp-x402 <command>
 ```
-npx -y github:nalin/gcp-x402 <command>
-```
 
-The first build prints npm deprecation warnings to stderr — harmless. To keep
-output clean, prefix commands with `npm_config_loglevel=error`. The data you want
-is always on stdout; the warnings never mix into it.
-
-| Command | What it does |
+| Command | Purpose |
 | --- | --- |
-| `wallet` | Show this project's wallet address, USDC balance, and how to fund it. |
-| `estimate "<sql>"` | Dry-run a query → exact price + bytes scanned, **without paying or running**. |
-| `query "<sql>"` | Run a read-only query, auto-pay the USDC price, print the result rows. |
-| `datasets` | List popular public datasets + current pricing. |
+| `wallet` | Show the project wallet, Base Sepolia USDC balance, and funding instructions. |
+| `estimate "<sql>"` | Price an allowlisted BigQuery query without paying or executing it. |
+| `query "<sql>"` | Pay and run an allowlisted read-only BigQuery query. |
+| `datasets` | List supported public-data datasets and pricing information. |
+| `catalog` | List available temporary GCP resource profiles. |
+| `provision <vm.small|storage.small>` | Pay for and create one temporary catalog resource. |
+| `provision-status <job-id> <capability>` | Inspect a provisioned resource. |
+| `provision-delete <job-id> <capability>` | Delete a provisioned resource early. |
 
-> Public package — `npx` needs no auth. Node 18+ required.
+The first CLI use generates a wallet in `./.gcp-x402/wallet.json`. Run `wallet`
+before any paid operation. If it has insufficient funds, show the address and ask
+the user to fund it with Base Sepolia USDC; do not retry payment repeatedly.
 
-## First use: fund the wallet
+## BigQuery workflow
 
-The wallet is generated automatically and is **per project** (`./.gcp-x402/wallet.json`).
-A new wallet starts at **$0**, so before the first query:
+Use only read-only Standard SQL against fully-qualified
+``bigquery-public-data.<dataset>.<table>`` tables. Do not use DML, DDL,
+non-public tables, or `SELECT *` on broad datasets.
 
-1. Run `wallet` to get the address and balance.
-2. If the balance is 0 (or too low), **show the user the address and ask them to
-   fund it** with USDC on Base. For the testnet proxy, point them to the free
-   faucet printed by the `wallet` command (https://faucet.circle.com → Base
-   Sepolia). Don't try to fund it yourself — only the user can.
-3. Re-run `wallet` to confirm funds arrived, then proceed.
+1. Draft a minimal-column query with filters.
+2. Run `estimate` before queries that may be material in size.
+3. State the quoted price and ask before a material charge.
+4. Run `query` only after that approval.
 
-If a `query` ever fails with an insufficient-funds / payment error, run `wallet`
-and ask the user to top up — don't keep retrying against an empty wallet.
+`LIMIT` limits returned rows, not bytes scanned. Select fewer columns and filter
+partitioned tables to reduce cost.
 
-## Writing queries that are correct AND cheap
+Example:
 
-Cost is driven by **bytes scanned**, priced from a BigQuery dry run (~$6.25/TiB,
-floored at a fraction of a cent). Two rules matter enormously:
-
-- **Select only the columns you need.** BigQuery is columnar — `SELECT *` scans
-  every column and can cost 100× more than `SELECT one_column`. Never `SELECT *`
-  on a wide or large table.
-- **`LIMIT` does NOT reduce cost.** It caps rows returned, not bytes scanned —
-  the full column is still read. To scan less, filter on a **partition column**
-  (often a date) or select fewer columns, not by adding `LIMIT`.
-
-Other requirements (enforced by the proxy):
-
-- **Read-only only.** `SELECT` queries against `bigquery-public-data` tables.
-  DML/DDL (INSERT/UPDATE/CREATE/…) and non-public tables are rejected.
-- **Fully qualify tables** as `` `bigquery-public-data.<dataset>.<table>` `` with
-  backticks. Use **Standard SQL** (not Legacy).
-
-**Always `estimate` first** for anything that might be large (any query over
-`github_repos`, `crypto_*`, `wikipedia`, or `SELECT *`). Show the user the price,
-and if it's more than a cent or two, confirm before running `query`.
-
-## Typical workflow
-
-1. Identify the dataset/table (use `datasets`, or known `bigquery-public-data`
-   tables). If unsure of columns, a cheap way to see schema is to `estimate` a
-   tiny `SELECT col, ... LIMIT 1` and iterate, or check the dataset's known schema.
-2. Draft a minimal-column, filtered query.
-3. `estimate` it → sanity-check the price.
-4. `query` it → returns rows as JSON. Summarize the answer for the user; mention
-   what it cost (printed on the summary line).
-
-## Examples
-
-**Example — most common baby names in California:**
-```
-npx -y github:nalin/gcp-x402 query \
+```bash
+PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
+  npx -y github:zwowo1997/gcp-x402 estimate \
   'SELECT name, SUM(number) AS total
    FROM `bigquery-public-data.usa_names.usa_1910_2013`
-   WHERE state = "CA" GROUP BY name ORDER BY total DESC LIMIT 10'
+   WHERE state = "CA"
+   GROUP BY name ORDER BY total DESC LIMIT 10'
 ```
 
-**Example — price-check before a potentially big query:**
-```
-npx -y github:nalin/gcp-x402 estimate \
-  'SELECT `by`, score FROM `bigquery-public-data.hacker_news.full` WHERE type = "story"'
+## Temporary GCP provisioning workflow
+
+Start with `catalog`. The current test catalog is deliberately small:
+
+- `vm.small`: a small Compute Engine VM in `us-central1`, automatically deleted
+  no later than 60 minutes after creation; payment ceiling `$1.00`.
+- `storage.small`: a private regional Cloud Storage bucket in `us-central1`,
+  automatically deleted no later than 60 minutes after creation; payment ceiling
+  `$0.50`.
+
+The service limits each resource's estimated GCP cost and atomically caps total
+outstanding test exposure at `$5`. This is an application safety control, not a
+GCP billing-account hard limit. The payment scheme currently charges the stated
+catalog ceiling; do not describe it as a refundable deposit.
+
+Before provisioning:
+
+1. Show the `catalog` result and state the specific payment ceiling and expiry.
+2. Ask the user for approval to pay and create the resource.
+3. Confirm the wallet has enough Base Sepolia USDC.
+4. Run `provision` once. Do not retry after an ambiguous failure.
+5. Save the returned `jobId` and `capability` together. The capability is a
+   secret bearer token required for status and deletion; never expose it in chat,
+   commits, or logs.
+6. Use `provision-status` to inspect it, or `provision-delete` when the user is
+   done. Automatic cleanup is still scheduled at expiry.
+
+Example:
+
+```bash
+PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
+  npx -y github:zwowo1997/gcp-x402 catalog
+
+PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
+  npx -y github:zwowo1997/gcp-x402 provision storage.small
 ```
 
-**Example — check the wallet before starting:**
-```
-npx -y github:nalin/gcp-x402 wallet
-```
+Do not attempt arbitrary VM shapes, regions, public IPs, bucket policies, object
+uploads, or IAM changes: those are outside the demo catalog. Do not provision a
+resource merely to test the API; a successful request consumes a payment and GCP
+capacity.
 
-## Notes
+## Payment guardrail
 
-- Override the proxy with `PROXY_URL=...` if pointing at a self-hosted deployment;
-  cap auto-pay per query with `MAX_PAYMENT_USD=...` (default $1.00).
-- This same package is also an MCP server (run with no args) for MCP-native
-  clients — see the repo README. The CLI above is the simplest path.
+Set `MAX_PAYMENT_USD` to the maximum single operation the user approved. The
+default is `$1.00`, which allows the present catalog but should not be raised
+without explicit approval:
+
+```bash
+MAX_PAYMENT_USD=0.50 \
+PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
+  npx -y github:zwowo1997/gcp-x402 provision storage.small
+```
