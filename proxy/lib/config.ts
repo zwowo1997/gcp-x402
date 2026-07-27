@@ -29,7 +29,7 @@ const network = networkName === "base" ? base : baseSepolia;
 export const config = {
   testMode: process.env.TEST_MODE !== "false",
   maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
-  maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 5),
+  maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 20),
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),
   /** Private-beta password and independent signing key; both come from Secret Manager in production. */
   betaAccessPassword: reqWhen(process.env.NODE_ENV === "production", "BETA_ACCESS_PASSWORD"),

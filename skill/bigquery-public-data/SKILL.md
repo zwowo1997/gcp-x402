@@ -110,8 +110,9 @@ Start with `catalog`. The current test catalog is deliberately small:
   automatically deleted no later than 60 minutes after creation; payment ceiling
   `$0.50`.
 
-The service limits each resource's estimated GCP cost and atomically caps total
-outstanding test exposure at `$5`. This is an application safety control, not a
+The service limits each operation's estimated GCP cost to its catalog ceiling (never
+above `$5`) and atomically caps total outstanding test exposure at `$20`. This is an
+application safety control, not a
 GCP billing-account hard limit. The payment scheme currently charges the stated
 catalog ceiling; do not describe it as a refundable deposit.
 
@@ -178,8 +179,9 @@ Before deploying:
    dedicated topic and Cloud Run services plus only that renter's shared-database rows early.
 
 Do not run a paper deployment merely as a connectivity check. It creates billable GCP
-resources and consumes a testnet payment. The operator caps outstanding testing exposure
-at `$5`; this is not a substitute for a GCP billing budget.
+resources and consumes a testnet payment. The operator caps each deployment at `$5`
+and total outstanding testing exposure at `$20`; this is not a substitute for a GCP
+billing budget.
 
 ## Payment guardrail
 

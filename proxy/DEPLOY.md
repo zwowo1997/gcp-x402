@@ -73,7 +73,7 @@ gcloud run deploy gcp-x402 \
   --service-account gcp-x402-run@gcp-x402.iam.gserviceaccount.com \
   --cpu 1 --memory 512Mi --timeout 120 --max-instances 1 \
   --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest,BETA_ACCESS_PASSWORD=gcp-x402-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-beta-session-secret:latest \
-  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=0x90e4071A1b7b1fc9A5d0b7EA6bEB1174F847F079|FACILITATOR_URL=https://x402.org/facilitator|GCP_PROJECT_ID=gcp-x402|MAX_BYTES_PER_QUERY=1073741824|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|MAX_RENTAL_MINUTES=60|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=us-central1|PUBLIC_BASE_URL=https://YOUR-CLOUD-RUN-URL'
+  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=0x90e4071A1b7b1fc9A5d0b7EA6bEB1174F847F079|FACILITATOR_URL=https://x402.org/facilitator|GCP_PROJECT_ID=gcp-x402|MAX_BYTES_PER_QUERY=1073741824|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=20|MAX_RENTAL_MINUTES=60|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=us-central1|PUBLIC_BASE_URL=https://YOUR-CLOUD-RUN-URL'
 ```
 
 > The `^|^` prefix tells gcloud to split env vars on `|` instead of `,`, so values
@@ -128,7 +128,8 @@ stack it creates a dedicated Pub/Sub topic and three private Tokyo Cloud Run ser
 `hyperliquid-demo` database in the `hyperliquid-test` Spanner instance in
 `us-central1`; `TenantId` is the first primary-key component in every table. The
 collector uses public data only; the strategy writes simulated orders only. The
-operator's exposure reservation is capped by `MAX_OUTSTANDING_GCP_EXPOSURE_USD=5`.
+Each stack remains capped at `$5`; total simultaneous test exposure is capped by
+`MAX_OUTSTANDING_GCP_EXPOSURE_USD=20` (up to four full-price stacks).
 Expiry or shutdown deletes only that renter's rows and dedicated runtime resources.
 It never deletes the shared database, the instance, or another tenant's rows.
 
@@ -193,7 +194,7 @@ gcloud run deploy gcp-x402-tokyo --source . --region asia-northeast1 --allow-una
   --max-instances 1 \
   --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest,BETA_ACCESS_PASSWORD=gcp-x402-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-beta-session-secret:latest \
   --timeout=15m \
-  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=hyperliquid-test|TRADING_SPANNER_DATABASE=hyperliquid-demo|TRADING_PAYMENT_TIMEOUT_SECONDS=600|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v2-shared-spanner|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=24|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
+  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=hyperliquid-test|TRADING_SPANNER_DATABASE=hyperliquid-demo|TRADING_PAYMENT_TIMEOUT_SECONDS=600|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v2-shared-spanner|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=24|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=20|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
 ```
 
 Deploy the static dashboard after the Tokyo Cloud Run service exists. Firebase Hosting
