@@ -2,8 +2,9 @@
 // an agent can query. This is intentionally a small curated list (not a live
 // BigQuery scan) so it costs nothing and gives agents a starting point.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config";
+import { requireBetaSession } from "@/lib/beta";
 
 const POPULAR = [
   { id: "bigquery-public-data.usa_names", description: "USA Social Security baby names by state/year." },
@@ -18,7 +19,9 @@ const POPULAR = [
   { id: "bigquery-public-data.google_trends", description: "Google Search top/rising terms by US DMA." },
 ];
 
-export function GET() {
+export function GET(req: NextRequest) {
+  const locked = requireBetaSession(req);
+  if (locked) return locked;
   return NextResponse.json({
     service: "gcp-x402",
     allowedProjects: config.allowedProjects,

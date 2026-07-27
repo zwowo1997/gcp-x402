@@ -22,6 +22,7 @@ import {
   encodeSettlementHeader,
 } from "@/lib/x402";
 import { recordTransaction } from "@/lib/store";
+import { requireBetaSession } from "@/lib/beta";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -32,6 +33,8 @@ interface QueryBody {
 }
 
 export async function POST(req: NextRequest) {
+  const locked = requireBetaSession(req);
+  if (locked) return locked;
   // --- parse ---------------------------------------------------------------
   let body: QueryBody;
   try {

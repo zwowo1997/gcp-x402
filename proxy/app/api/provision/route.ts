@@ -8,10 +8,13 @@ import { buildRequirements, paymentRequiredBody, decodePaymentHeader, verify, se
 import { sha256, signQuote } from "@/lib/quote";
 import { issueResourceCapability } from "@/lib/capability";
 import { scheduleCleanup } from "@/lib/cleanup";
+import { requireBetaSession } from "@/lib/beta";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const locked = requireBetaSession(req);
+  if (locked) return locked;
   let body: { resourceId?: string; durationMinutes?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Body must be JSON." }, { status: 400 }); }
   const duration = body.durationMinutes ?? config.maxRentalMinutes;

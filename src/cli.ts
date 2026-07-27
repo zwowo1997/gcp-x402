@@ -5,7 +5,7 @@
 // MCP registration. Output is written for an agent to read: a human-readable
 // summary on stderr, the actual data (rows / json) on stdout.
 
-import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService } from "./client.js";
 
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
 
@@ -13,6 +13,7 @@ Usage:
   npx -y github:zwowo1997/gcp-x402 <command>
 
 Commands:
+  unlock                 Prompt for the private-beta password and save only the session.
   wallet                 Show this project's wallet address, USDC balance, and how to fund it.
   estimate "<sql>"       Dry-run a query: exact price + bytes, without paying or running it.
   query "<sql>"          Run a read-only query, auto-pay the USDC price, print the rows.
@@ -21,6 +22,10 @@ Commands:
   provision <resource>  Provision vm.small or storage.small and pay via x402.
   provision-status <id> <capability> Show a provisioning job.
   provision-delete <id> <capability> Delete a provisioned resource.
+  trading-catalog         List the Tokyo paper-trading stack profile.
+  trading-deploy          Deploy a paid 24-hour BTC paper-trading stack.
+  trading-status <id> <capability> Inspect a paper-trading stack.
+  trading-control <id> <capability> <start|stop|resume|shutdown> Control a paper-trading stack.
   help                   Show this message.
 
 Only bigquery-public-data tables are queryable; read-only (no DML/DDL).`;
@@ -30,6 +35,13 @@ export async function runCli(argv: string[]): Promise<number> {
   const sql = argv.slice(1).join(" ").trim();
 
   switch (cmd) {
+    case "unlock": {
+      const password = await readHiddenPassword();
+      if (!password) return usageError("unlock");
+      const result = await unlockService(password);
+      console.log(`unlocked_until: ${result.expiresAt}`);
+      return 0;
+    }
     case "wallet": {
       const info = await walletInfo();
       console.log(`address:      ${info.address}`);
@@ -83,6 +95,20 @@ export async function runCli(argv: string[]): Promise<number> {
       if (!argv[1] || !argv[2]) return usageError("provision-delete <job-id> <capability>");
       console.log(JSON.stringify(await provisionDelete(argv[1], argv[2]), null, 2));
       return 0;
+    case "trading-catalog":
+      console.log(JSON.stringify(await tradingCatalog(), null, 2));
+      return 0;
+    case "trading-deploy":
+      console.log(JSON.stringify(await deployPaperTrading(), null, 2));
+      return 0;
+    case "trading-status":
+      if (!argv[1] || !argv[2]) return usageError("trading-status <stack-id> <capability>");
+      console.log(JSON.stringify(await tradingStatus(argv[1], argv[2]), null, 2));
+      return 0;
+    case "trading-control":
+      if (!argv[1] || !argv[2] || !argv[3]) return usageError("trading-control <stack-id> <capability> <start|stop|resume|shutdown>");
+      console.log(JSON.stringify(await controlPaperTrading(argv[1], argv[2], argv[3] as "start" | "stop" | "resume" | "shutdown"), null, 2));
+      return 0;
 
     case "help":
     case "--help":
@@ -96,6 +122,37 @@ export async function runCli(argv: string[]): Promise<number> {
       console.error(USAGE);
       return 2;
   }
+}
+
+async function readHiddenPassword(): Promise<string> {
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== "function") {
+    console.error("Run `gcp-x402 unlock` in an interactive terminal so the password is not exposed in command history.");
+    return "";
+  }
+  return new Promise((resolve, reject) => {
+    const input = process.stdin;
+    const wasRaw = input.isRaw;
+    let password = "";
+    const finish = (error?: Error) => {
+      input.off("data", onData);
+      input.setRawMode(Boolean(wasRaw));
+      input.pause();
+      process.stderr.write("\n");
+      if (error) reject(error); else resolve(password);
+    };
+    const onData = (chunk: Buffer | string) => {
+      for (const char of String(chunk)) {
+        if (char === "\r" || char === "\n") return finish();
+        if (char === "\u0003") return finish(new Error("Unlock cancelled."));
+        if (char === "\u007f" || char === "\b") password = password.slice(0, -1);
+        else if (password.length < 256) password += char;
+      }
+    };
+    process.stderr.write("Private beta password: ");
+    input.setRawMode(true);
+    input.resume();
+    input.on("data", onData);
+  });
 }
 
 function usageError(usage: string): number {

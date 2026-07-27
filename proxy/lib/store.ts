@@ -19,7 +19,7 @@ export interface JobRecord {
 export interface TransactionRecord {
   id: string;
   payer: string;
-  service: "bigquery" | "compute" | "storage";
+  service: "bigquery" | "compute" | "storage" | "trading";
   operation: string;
   status: TransactionStatus;
   requestedAmountUsd: number;

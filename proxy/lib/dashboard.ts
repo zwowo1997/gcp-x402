@@ -11,5 +11,5 @@ export async function dashboardSnapshot() {
     const rows = transactions.filter((t) => t.service === service);
     return { calls: rows.length, users: new Set(rows.map((r) => r.payer)).size, settledUsd: rows.reduce((n, r) => n + (r.settledAmountUsd ?? 0), 0), failed: rows.filter((r) => r.status === "failed").length };
   };
-  return { totals: { transactions: transactions.length, users: users.size, settledUsd: settled, refundedUsd: refunded, activeResources: active.length, outstandingExposureUsd: exposure }, services: { bigquery: byService("bigquery"), compute: byService("compute"), storage: byService("storage") }, resources: { active: active.length, closed: jobs.filter((j) => j.status === "closed").length, failed: jobs.filter((j) => j.status === "failed").length }, recentTransactions: transactions.slice(0, 50) };
+  return { totals: { transactions: transactions.length, users: users.size, settledUsd: settled, refundedUsd: refunded, activeResources: active.length, outstandingExposureUsd: exposure }, services: { bigquery: byService("bigquery"), compute: byService("compute"), storage: byService("storage"), trading: byService("trading") }, resources: { active: active.length, closed: jobs.filter((j) => j.status === "closed").length, failed: jobs.filter((j) => j.status === "failed").length }, recentTransactions: transactions.slice(0, 50) };
 }

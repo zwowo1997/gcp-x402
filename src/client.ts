@@ -8,6 +8,7 @@ import { createPublicClient, http, formatUnits } from "viem";
 import { config } from "./config.js";
 import { getAccount } from "./wallet.js";
 import { networkById, type ClientNetwork } from "./networks.js";
+import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 
 const account = getAccount();
 
@@ -15,7 +16,14 @@ const account = getAccount();
 // units (6 decimals). A hard backstop against a mispriced/hostile quote.
 const maxAutoPayBaseUnits = BigInt(Math.ceil(config.maxPaymentUsd * 1e6));
 
-const paidFetch = wrapFetchWithPayment(fetch, account, maxAutoPayBaseUnits);
+const serviceFetch: typeof fetch = (input, init = {}) => {
+  const headers = new Headers(init.headers);
+  const session = betaSessionToken();
+  if (session) headers.set("x-gcp-x402-session", session);
+  return fetch(input, { ...init, headers });
+};
+
+const paidFetch = wrapFetchWithPayment(serviceFetch, account, maxAutoPayBaseUnits);
 
 export const walletAddress = account.address;
 
@@ -37,7 +45,7 @@ interface DatasetsInfo {
 /** Ask the proxy which network/asset it settles on (free, unauthenticated). */
 async function proxyNetwork(): Promise<ClientNetwork> {
   try {
-    const res = await fetch(new URL("/api/datasets", config.proxyUrl));
+    const res = await serviceFetch(new URL("/api/datasets", config.proxyUrl));
     if (res.ok) {
       const data = (await res.json()) as DatasetsInfo;
       if (data.network) return networkById(data.network);
@@ -46,6 +54,22 @@ async function proxyNetwork(): Promise<ClientNetwork> {
     /* fall through to default */
   }
   return networkById("base-sepolia");
+}
+
+export interface BetaUnlockResult { expiresAt: string; }
+
+export async function unlockService(password: string): Promise<BetaUnlockResult> {
+  const response = await fetch(new URL("/api/beta/unlock", config.proxyUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Unlock failed (${response.status}): ${text}`);
+  const session = JSON.parse(text) as { token: string; expiresAt: string };
+  if (!session.token || !session.expiresAt) throw new Error("Unlock response did not contain a session.");
+  saveBetaSession(session);
+  return { expiresAt: session.expiresAt };
 }
 
 export interface WalletInfo {
@@ -123,7 +147,7 @@ function parseQuote(body: {
 
 /** Price a query without paying (call 1 of the x402 handshake only). */
 export async function estimate(sql: string): Promise<QuoteInfo> {
-  const res = await fetch(new URL("/api/query", config.proxyUrl), {
+  const res = await serviceFetch(new URL("/api/query", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sql }),
@@ -180,7 +204,7 @@ export async function query(sql: string): Promise<QueryResult> {
 }
 
 export async function listDatasets(): Promise<unknown> {
-  const res = await fetch(new URL("/api/datasets", config.proxyUrl));
+  const res = await serviceFetch(new URL("/api/datasets", config.proxyUrl));
   if (!res.ok) throw new Error(`/api/datasets failed: ${res.status}`);
   return res.json();
 }
@@ -188,7 +212,7 @@ export async function listDatasets(): Promise<unknown> {
 export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; durationMinutes?: number; }
 export interface ProvisionResult { jobId: string; resourceId: string; expiresAt: string; maxPriceUsd: number; capability: string; }
 export async function provisionCatalog(): Promise<unknown> {
-  const res = await fetch(new URL("/api/catalog", config.proxyUrl));
+  const res = await serviceFetch(new URL("/api/catalog", config.proxyUrl));
   if (!res.ok) throw new Error(`/api/catalog failed: ${res.status}`);
   return res.json();
 }
@@ -201,12 +225,60 @@ export async function provisionResource(input: ProvisionRequest): Promise<Provis
   return JSON.parse(text);
 }
 export async function provisionStatus(jobId: string, capability: string): Promise<unknown> {
-  const res = await fetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
+  const res = await serviceFetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
   if (!res.ok) throw new Error(`Provision status failed (${res.status})`);
   return res.json();
 }
 export async function provisionDelete(jobId: string, capability: string): Promise<unknown> {
-  const res = await fetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { method: "DELETE", headers: { "x-resource-capability": capability } });
+  const res = await serviceFetch(new URL(`/api/provision/${encodeURIComponent(jobId)}`, config.proxyUrl), { method: "DELETE", headers: { "x-resource-capability": capability } });
   if (!res.ok) throw new Error(`Provision delete failed (${res.status}): ${await res.text()}`);
+  return res.json();
+}
+
+export interface PaperTradingConfig {
+  fastEma?: number;
+  slowEma?: number;
+  virtualBalanceUsd?: number;
+  maxOrderNotionalUsd?: number;
+  maxPositionNotionalUsd?: number;
+  maxDailyLossUsd?: number;
+  slippageBps?: number;
+}
+
+export interface PaperTradingDeployment {
+  stackId: string;
+  mode: "paper";
+  region: string;
+  expiresAt: string;
+  maxPriceUsd: number;
+  capability: string;
+  dashboardUrl?: string;
+  paperOnly: true;
+}
+
+export async function tradingCatalog(): Promise<unknown> {
+  const res = await serviceFetch(new URL("/api/trading/catalog", config.proxyUrl));
+  if (!res.ok) throw new Error(`/api/trading/catalog failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deployPaperTrading(configInput: PaperTradingConfig = {}): Promise<PaperTradingDeployment> {
+  const res = await paidFetch(new URL("/api/trading/deploy", config.proxyUrl), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profileId: "trading.paper.ema", config: configInput }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Paper trading deployment failed (${res.status}): ${text}`);
+  return JSON.parse(text);
+}
+
+export async function tradingStatus(stackId: string, capability: string): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/trading/${encodeURIComponent(stackId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
+  if (!res.ok) throw new Error(`Trading status failed (${res.status}): ${await res.text()}`);
+  return res.json();
+}
+
+export async function controlPaperTrading(stackId: string, capability: string, control: "start" | "stop" | "resume" | "shutdown"): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/trading/${encodeURIComponent(stackId)}/control`, config.proxyUrl), { method: "POST", headers: { "content-type": "application/json", "x-resource-capability": capability }, body: JSON.stringify({ control }) });
+  if (!res.ok) throw new Error(`Trading control failed (${res.status}): ${await res.text()}`);
   return res.json();
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getJob } from "@/lib/store";
 import { hasResourceCapability } from "@/lib/capability";
 import { closeJob } from "@/lib/lifecycle";
+import { requireBetaSession } from "@/lib/beta";
 
 export const runtime = "nodejs";
 
@@ -10,12 +11,16 @@ function authorized(req: NextRequest, jobId: string, payer: string) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ jobId: string }> }) {
+  const locked = requireBetaSession(req);
+  if (locked) return locked;
   const job = await getJob((await ctx.params).jobId);
   if (job && !authorized(req, job.id, job.payer)) return NextResponse.json({ error: "Resource capability required." }, { status: 401 });
   return job ? NextResponse.json(job) : NextResponse.json({ error: "Job not found" }, { status: 404 });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ jobId: string }> }) {
+  const locked = requireBetaSession(req);
+  if (locked) return locked;
   const job = await getJob((await ctx.params).jobId);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   if (!authorized(req, job.id, job.payer)) return NextResponse.json({ error: "Resource capability required." }, { status: 401 });
