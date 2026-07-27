@@ -583,7 +583,7 @@ await bq.run(sql, { maximumBytesBilled: cap });   <span class="c">// fails free 
           <div class="mono lbl">with arguments</div>
           <h4>Plain CLI</h4>
           <p style="margin:6px 0 0">The skill drives it over the shell:
-            <code>npx -y github:nalin/gcp-x402 query "&lt;sql&gt;"</code> — no MCP setup needed.</p>
+            <code>npx -y github:zwowo1997/gcp-x402 query "&lt;sql&gt;"</code> — no MCP setup needed.</p>
         </div>
       </div>
 
@@ -619,14 +619,13 @@ await bq.run(sql, { maximumBytesBilled: cap });   <span class="c">// fails free 
 
       <h3>As a skill (simplest, per project)</h3>
 <pre><span class="c"># run from the project you want to enable</span>
-mkdir -p .claude/skills/bigquery-public-data &amp;&amp; \
-curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
-  -o .claude/skills/bigquery-public-data/SKILL.md</pre>
+mkdir -p .claude/skills/gcp-x402 &amp;&amp; \
+curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+  -o .claude/skills/gcp-x402/SKILL.md</pre>
 
       <h3>As an MCP server</h3>
 <pre>claude mcp add gcp-x402 \
-  --env PROXY_URL=https://gcp-x402-975410367881.us-central1.run.app \
-  -- npx -y github:nalin/gcp-x402</pre>
+  -- npx -y github:zwowo1997/gcp-x402</pre>
       <p class="small">Both point at the same hosted proxy and the same per-project wallet.</p>
     </section>
 
