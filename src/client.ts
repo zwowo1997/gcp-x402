@@ -11,7 +11,7 @@ import { getAccount } from "./wallet.js";
 import { networkById, type ClientNetwork } from "./networks.js";
 import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 import { lockedServiceHelp } from "./project-context.js";
-import { clearPendingTradingRequest, pendingTradingRequestId, saveTradingReceipt, type TradingReceipt } from "./trading-receipt.js";
+import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
 
 const account = getAccount();
 
@@ -266,6 +266,10 @@ export interface PaperTradingDeployment {
   dashboardUrl?: string;
   paperOnly: true;
   resources?: Record<string, string>;
+  costBreakdown?: Array<Record<string, unknown>>;
+  costSummary?: Record<string, unknown>;
+  reusedReceipt?: boolean;
+  reuseReason?: string;
 }
 
 export async function tradingCatalog(): Promise<unknown> {
@@ -274,7 +278,11 @@ export async function tradingCatalog(): Promise<unknown> {
   return res.json();
 }
 
-export async function deployPaperTrading(configInput: PaperTradingConfig = {}): Promise<PaperTradingDeployment> {
+export async function deployPaperTrading(configInput: PaperTradingConfig = {}, options: { allowAdditionalStack?: boolean } = {}): Promise<PaperTradingDeployment> {
+  if (!options.allowAdditionalStack) {
+    const receipt = recentTradingReceipt(configInput);
+    if (receipt) return { ...receipt, reusedReceipt: true, reuseReason: "Returned the recent successful receipt instead of creating another paid stack. Use an explicitly approved additional-stack option only when a separate stack is intended." };
+  }
   const requestId = pendingTradingRequestId(configInput, randomUUID);
   const res = await paidFetch(new URL("/api/trading/deploy", config.proxyUrl), {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profileId: "trading.paper.ema", requestId, config: configInput }),
@@ -287,7 +295,7 @@ export async function deployPaperTrading(configInput: PaperTradingConfig = {}): 
     throw new Error(`Paper trading deployment failed (${res.status}): ${text}`);
   }
   const deployment = JSON.parse(text) as PaperTradingDeployment;
-  saveTradingReceipt({ ...deployment, savedAt: new Date().toISOString() } satisfies TradingReceipt);
+  saveTradingReceipt({ ...deployment, requestId, configJson: tradingConfigJson(configInput), savedAt: new Date().toISOString() } satisfies TradingReceipt);
   clearPendingTradingRequest(requestId);
   return deployment;
 }

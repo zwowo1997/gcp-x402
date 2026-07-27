@@ -24,6 +24,23 @@ export interface TradingResources {
   database: string;
 }
 
+export interface TradingCostEstimate {
+  service: "Cloud Run" | "Pub/Sub" | "Spanner" | "Firebase Hosting" | "Cloud Tasks";
+  component: string;
+  resource: string;
+  region: string;
+  scope: "dedicated" | "shared";
+  estimated24hUsd: number;
+  note: string;
+}
+
+export interface TradingCostSummary {
+  x402PaymentUsd: number;
+  estimatedGcpUsageUsd: number;
+  serviceAndRiskBufferUsd: number;
+  estimateBasis: string;
+}
+
 export interface TradingStackRecord {
   id: string;
   payer: string;

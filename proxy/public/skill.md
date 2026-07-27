@@ -36,9 +36,11 @@ npx -y github:zwowo1997/gcp-x402 <command>
 | `provision-status <job-id> <capability>` | Inspect a provisioned resource. |
 | `provision-delete <job-id> <capability>` | Delete a provisioned resource early. |
 | `trading-catalog` | List the 24-hour Tokyo Hyperliquid paper-trading profile. |
-| `trading-deploy` | Pay and deploy the BTC paper-trading stack. |
+| `trading-deploy` | Deploy once, or return a recent matching receipt without paying again. |
+| `trading-deploy --new` | Intentionally create an additional paid stack; requires a fresh explicit `$5` approval. |
 | `trading-status <stack-id> <capability>` | Inspect a paper stack and lifecycle events. |
 | `trading-control <stack-id> <capability> <stop|resume|shutdown>` | Control a paper stack. |
+| `trading-receipts` | List locally saved successful deployments without printing capabilities. |
 
 Before any service command, determine the agent's absolute working directory. Ask the
 user to unlock from that exact directory, rendering the real path and quoting it safely:
@@ -161,20 +163,32 @@ Before deploying:
 2. State the maximum one-time payment (`$5.00` USDC on Base Sepolia), 24-hour expiry,
    Tokyo region, and simulated-only execution.
 3. Ask for explicit approval to spend up to `$5.00`, unless the user already gave it.
-4. Set the client cap and start one deployment:
+4. Set the client cap and start one deployment. Never use `--new` for the user's first
+   stack or to recover an ambiguous terminal handoff:
 
    ```bash
    MAX_PAYMENT_USD=5.00 npx -y github:zwowo1997/gcp-x402 trading-deploy
    ```
 
-5. Keep the returned `stackId` and `capability` private. Give the returned dashboard
+5. Treat any returned receipt as definitive success. Keep the returned `stackId` and
+   `capability` private. Give the returned dashboard
    URL to the user; it contains the private capability in its fragment.
    The client also saves a local receipt under `.gcp-x402/trading-receipts.json`; if
    the terminal loses the response, recover it with `trading-receipt <stackId>`.
-   If the request appears to hang, do not immediately pay again: inspect the local
-   receipts or deployment status first. The request carries a retry key so the proxy
-   can return the existing successful deployment.
-6. Use `trading-status` for status. Use `trading-control ... stop` to pause Pub/Sub
+   If the command output is lost or appears to hang, do not start a new intent. Run
+   `trading-receipts` first. If a receipt exists, use it and do not call deploy again.
+   Otherwise invoke ordinary `trading-deploy` at most once to resume the in-flight key;
+   it returns a recent matching receipt instead of charging again. Never use `--new`
+   during recovery. Use `--new` only when the user explicitly requests a separate
+   additional stack and freshly approves another payment up to `$5`.
+6. Immediately after successful deployment, show a **GCP services and payment visibility**
+   list in chat. Read the returned `costBreakdown`; for every item print its Google Cloud
+   service, component, exact resource name, region, dedicated/shared scope, and
+   `estimated24hUsd`. Then print `costSummary.x402PaymentUsd`,
+   `costSummary.estimatedGcpUsageUsd`, and `costSummary.serviceAndRiskBufferUsd`.
+   Label these as illustrative 24-hour allocations, not separate micropayments, a GCP
+   invoice, or refundable amounts. Do not invent estimates when the response provides them.
+7. Use `trading-status` for status. Use `trading-control ... stop` to pause Pub/Sub
    consumers, `resume` to restart them before expiry, or `shutdown` to delete the
    dedicated topic and Cloud Run services plus only that renter's shared-database rows early.
 

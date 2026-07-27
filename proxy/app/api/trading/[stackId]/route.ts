@@ -4,6 +4,7 @@ import { tradingMetrics } from "@/lib/trading/metrics";
 import { getTradingStack, listTradingEvents } from "@/lib/trading/store";
 import { requireBetaSession } from "@/lib/beta";
 import { dashboardPreflight, withDashboardCors } from "@/lib/dashboard-cors";
+import { tradingCostBreakdown, tradingCostSummary } from "@/lib/trading/costs";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ stackId: st
     listTradingEvents(stack.id),
     tradingMetrics(stack.resources).catch((error) => ({ unavailable: true, reason: (error as Error).message })),
   ]);
-  return withDashboardCors(req, NextResponse.json({ stack, events, metrics, paperOnly: true }));
+  return withDashboardCors(req, NextResponse.json({ stack, events, metrics, costBreakdown: tradingCostBreakdown(stack.resources), costSummary: tradingCostSummary(stack.resources), paperOnly: true }));
 }
 
 export function OPTIONS(req: NextRequest) { return dashboardPreflight(req); }

@@ -23,7 +23,7 @@ test("tenant cleanup is restricted to one tenant key range", () => {
   const mutations = tenantDeleteMutations(resources);
   assert.equal(mutations.length, 3);
   assert.ok(mutations.every(({ delete: operation }) =>
-    operation.keySet.ranges[0].startClosed.values[0].stringValue === resources.tenantId
-    && operation.keySet.ranges[0].endOpen.values[0].stringValue === `${resources.tenantId}\uffff`
+    operation.keySet.ranges[0].startClosed[0] === resources.tenantId
+    && operation.keySet.ranges[0].endClosed[0] === resources.tenantId
   ));
 });

@@ -10,9 +10,7 @@ export const sharedTradingSchema = [
 
 /** Delete every row owned by one renter without touching another tenant or the shared database. */
 export function tenantDeleteMutations(resources: TradingResources) {
-  const start = { values: [{ stringValue: resources.tenantId }] };
-  const end = { values: [{ stringValue: `${resources.tenantId}\uffff` }] };
   return ["MarketSnapshots", "StrategyState", "SimulatedOrders"].map((table) => ({
-    delete: { table, keySet: { ranges: [{ startClosed: start, endOpen: end }] } },
+    delete: { table, keySet: { ranges: [{ startClosed: [resources.tenantId], endClosed: [resources.tenantId] }] } },
   }));
 }

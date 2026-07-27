@@ -30,6 +30,10 @@ It also includes an opt-in `trading.paper.ema` profile for a **paper-only** Hype
 BTC perpetual strategy stack. It creates Tokyo (`asia-northeast1`) Pub/Sub and Cloud
 Run services, with renter-isolated rows in an operator-owned shared Spanner database,
 then opens a basic hosted control dashboard.
+The dashboard is an operating console rather than a landing page: it shows the live BTC
+mid-price series, paper signal and position, simulated order ledger, risk limits, lease
+status, exact provisioned resource names, and the fixed payment versus estimated 24-hour
+GCP allocation. It also exposes capability-gated stop, resume, and shutdown controls.
 The stack uses public market data and simulated orders only: it has no wallet key and
 cannot place testnet or mainnet trades. See [the Tokyo paper-trading runbook](proxy/DEPLOY.md#tokyo-paper-trading-stack).
 
@@ -40,7 +44,7 @@ cannot place testnet or mainnet trades. See [the Tokyo paper-trading runbook](pr
 | `src/`    | The agent-side MCP server (repo root package). Holds the agent's USDC wallet, auto-pays. |
 | `proxy/`  | The x402 server (Next.js, deploy to Cloud Run). Holds GCP creds + receiving wallet. |
 | `trading-runtime/` | Paper-only, official-SDK-ready market-data, persistence, and strategy image. |
-| `dashboard/` | Minimal Firebase Hosting dashboard for one paper strategy. |
+| `dashboard/` | Firebase-hosted paper-strategy operating console and lifecycle controls. |
 
 The MCP client lives at the repo root so it installs in one line with
 `npx -y github:zwowo1997/gcp-x402` — no clone, no build step.
