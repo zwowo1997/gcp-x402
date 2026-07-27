@@ -12,7 +12,7 @@ description: >-
 
 # gcp-x402: paid BigQuery and demo GCP resources
 
-Use the hosted service at `https://gcp-x402-837831206506.us-central1.run.app`.
+Use the hosted service at `https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app`.
 It accepts USDC payments through x402 on **Base Sepolia** and runs the paid work
 using the operator's GCP account. Never treat it as a general-purpose GCP API.
 

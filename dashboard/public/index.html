@@ -39,19 +39,23 @@
   const stackId = location.pathname.split('/').filter(Boolean).pop();
   const capability = new URLSearchParams(location.hash.slice(1)).get('capability');
   const betaSession = new URLSearchParams(location.hash.slice(1)).get('session');
-  const apiBase = new URLSearchParams(location.search).get('api');
+  // Firebase Hosting proxies only /api/* to the fixed Tokyo Cloud Run service.
+  // Never accept a backend URL from a link: this page carries bearer-style
+  // capability headers in its URL fragment.
+  const apiBase = location.origin;
   const headers = { 'x-resource-capability': capability || '', 'x-gcp-x402-session': betaSession || '' };
   const dollars = value => '$' + Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2});
-  const resourceRows = (resources, status) => Object.entries(resources).map(([name, value]) => `<tr><td>${name.replace(/([A-Z])/g,' $1')}</td><td><code>${value}</code></td><td class="status">${status}</td></tr>`).join('');
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const resourceRows = (resources, status) => Object.entries(resources).map(([name, value]) => `<tr><td>${escapeHtml(name.replace(/([A-Z])/g,' $1'))}</td><td><code>${escapeHtml(value)}</code></td><td class="status">${escapeHtml(status)}</td></tr>`).join('');
   const draw = market => { const target=document.getElementById('chart'); if(!market?.length){ target.innerHTML=''; return; } const values=market.map(point=>Number(point.mid)); const min=Math.min(...values), max=Math.max(...values), range=max-min||1; target.innerHTML=values.map(value=>`<i class="bar" title="$${value.toLocaleString()}" style="height:${18+((value-min)/range)*78}%"></i>`).join(''); document.getElementById('feed-note').textContent=`${market.length} persisted BTC mid-price snapshots · real public feed · simulated execution only`; };
   async function load() {
-    if (!stackId || !capability || !betaSession || !apiBase) throw new Error('This dashboard link is incomplete or its beta session expired. Unlock again and re-open the private URL returned by the MCP.');
+    if (!stackId || !capability || !betaSession) throw new Error('This dashboard link is incomplete or its beta session expired. Unlock again and re-open the private URL returned by the MCP.');
     const response = await fetch(`${apiBase}/api/trading/${stackId}`, { headers });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load stack.');
     const s=data.stack; document.getElementById('subtitle').textContent=`${s.config.symbol} · EMA ${s.config.fastEma}/${s.config.slowEma} · virtual balance ${dollars(s.config.virtualBalanceUsd)}`;
     document.getElementById('status').textContent=s.status; document.getElementById('expiry').textContent=new Date(s.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); document.getElementById('region').textContent=s.resources.collectorService ? 'Tokyo' : '—';
-    const strategy=data.metrics?.strategy||{}; document.getElementById('summary').innerHTML=[['Market','BTC perpetual'],['Execution','Simulated only'],['Signal',strategy.last_signal||'warming up'],['Equity',strategy.equity ? dollars(strategy.equity) : '—'],['Daily P&L',strategy.daily_pnl ? dollars(strategy.daily_pnl) : '$0'],['Max order',dollars(s.config.maxOrderNotionalUsd)],['Max position',dollars(s.config.maxPositionNotionalUsd)],['Daily loss limit',dollars(s.config.maxDailyLossUsd)]].map(([a,b])=>`<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
-    document.getElementById('resources').innerHTML=resourceRows(s.resources,s.status); document.getElementById('events').innerHTML=(data.events||[]).map(e=>`<tr><td>${new Date(e.createdAt).toLocaleTimeString()}</td><td>${e.message}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">No events yet.</td></tr>';
+    const strategy=data.metrics?.strategy||{}; document.getElementById('summary').innerHTML=[['Market','BTC perpetual'],['Execution','Simulated only'],['Signal',strategy.last_signal||'warming up'],['Equity',strategy.equity ? dollars(strategy.equity) : '—'],['Daily P&L',strategy.daily_pnl ? dollars(strategy.daily_pnl) : '$0'],['Max order',dollars(s.config.maxOrderNotionalUsd)],['Max position',dollars(s.config.maxPositionNotionalUsd)],['Daily loss limit',dollars(s.config.maxDailyLossUsd)]].map(([a,b])=>`<tr><td class="muted">${escapeHtml(a)}</td><td>${escapeHtml(b)}</td></tr>`).join('');
+    document.getElementById('resources').innerHTML=resourceRows(s.resources,s.status); document.getElementById('events').innerHTML=(data.events||[]).map(e=>`<tr><td>${escapeHtml(new Date(e.createdAt).toLocaleTimeString())}</td><td>${escapeHtml(e.message)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">No events yet.</td></tr>';
     draw(data.metrics?.market); if(data.metrics?.unavailable) document.getElementById('feed-note').textContent='Market telemetry is warming up or temporarily unavailable.';
   }
   document.querySelectorAll('[data-control]').forEach(button=>button.addEventListener('click',async()=>{ if(button.dataset.control==='shutdown'&&!confirm('Delete this dedicated paper-trading stack?')) return; button.disabled=true; try { const r=await fetch(`${apiBase}/api/trading/${stackId}/control`,{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({control:button.dataset.control})}); if(!r.ok) throw new Error((await r.json()).error); await load(); } catch(e){document.getElementById('error').textContent=e.message;} finally{button.disabled=false;} }));

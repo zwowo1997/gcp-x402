@@ -18,7 +18,9 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     GCP_PROJECT_ID=build-placeholder \
     PAY_TO_ADDRESS=0x0000000000000000000000000000000000000000 \
     QUOTE_SECRET=build-placeholder \
-    RESOURCE_CAPABILITY_SECRET=build-placeholder
+    RESOURCE_CAPABILITY_SECRET=build-placeholder \
+    BETA_ACCESS_PASSWORD=build-placeholder \
+    BETA_SESSION_SECRET=build-placeholder
 RUN npm run build
 
 # 3) minimal runtime image

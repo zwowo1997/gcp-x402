@@ -12,7 +12,7 @@ This guide is for people *using* an agent (Claude Code, etc.), not deploying the
 
 Just tell your agent, in plain English:
 
-> **install the skill at https://gcp-x402-837831206506.us-central1.run.app/skill**
+> **install the skill at https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app/skill**
 
 That's it. The agent fetches the skill from that URL and drops it into its skills folder.
 From then on, whenever you ask a question that public data can answer, it knows how to use
@@ -25,7 +25,7 @@ Run this from the project where you want the skill (installs it just for that pr
 
 ```bash
 mkdir -p .claude/skills/gcp-x402 && \
-curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+curl -fsSL https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app/skill \
   -o .claude/skills/gcp-x402/SKILL.md
 ```
 </details>
@@ -98,7 +98,7 @@ and you're only ever charged for queries that succeed.
 Your agent is running in a locked-down environment that only allows certain outbound
 hosts. Ask whoever manages it to allow these:
 
-- `gcp-x402-837831206506.us-central1.run.app` — installing the skill and running requests
+- `gcp-x402-tokyo-837831206506.asia-northeast1.run.app` — installing the skill and running requests
 - `github.com`, `codeload.github.com`, `registry.npmjs.org` — installing the tool itself
 - `sepolia.base.org` (or `mainnet.base.org`) — checking your wallet balance
 

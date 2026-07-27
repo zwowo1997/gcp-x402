@@ -62,7 +62,10 @@ export async function POST(req: NextRequest) {
     await recordTransaction({ id: `trading-${id}`, payer: stack.payer, service: "trading", operation: "deploy_paper", status: "settled", requestedAmountUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, settledAmountUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, resourceId: id, createdAt: now.toISOString(), completedAt: new Date().toISOString() });
     const capability = issueResourceCapability(id, stack.payer);
     const betaSession = req.headers.get(BETA_SESSION_HEADER) ?? "";
-    const dashboardUrl = config.tradingDashboardUrl ? `${config.tradingDashboardUrl}/strategy/${id}?api=${encodeURIComponent(config.publicBaseUrl ?? "")}#capability=${encodeURIComponent(capability)}&session=${encodeURIComponent(betaSession)}` : undefined;
+    // Firebase Hosting rewrites /api/* to this Cloud Run service. Keeping the
+    // backend out of the URL means a modified dashboard link cannot exfiltrate
+    // the short-lived session and resource capability headers to another host.
+    const dashboardUrl = config.tradingDashboardUrl ? `${config.tradingDashboardUrl}/strategy/${id}#capability=${encodeURIComponent(capability)}&session=${encodeURIComponent(betaSession)}` : undefined;
     const response = NextResponse.json({ stackId: id, mode: "paper", region: config.tradingRegion, expiresAt: active.expiresAt, maxPriceUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, capability, dashboardUrl, resources, paperOnly: true });
     response.headers.set("X-PAYMENT-RESPONSE", encodeSettlementHeader(settlement));
     return response;
