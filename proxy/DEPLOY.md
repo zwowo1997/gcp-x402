@@ -188,8 +188,9 @@ gcloud run deploy gcp-x402-tokyo --source . --region asia-northeast1 --allow-una
   --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=gcp-x402-trading|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v1|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=24|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
 ```
 
-Deploy the static dashboard after replacing no code—the proxy includes the API URL and
-per-stack capability in its returned dashboard link:
+Deploy the static dashboard after the Tokyo Cloud Run service exists. Firebase Hosting
+rewrites `/api/*` to that fixed service, so a dashboard link never contains an editable
+API origin. The per-stack capability remains only in the URL fragment:
 
 ```bash
 firebase deploy --only hosting --config dashboard/firebase.json

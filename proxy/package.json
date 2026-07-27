@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@google-cloud/bigquery": "^7.9.0",
+    "@google-cloud/bigquery": "^8.3.1",
     "@google-cloud/firestore": "^8.7.0",
     "@google-cloud/storage": "^7.21.0",
     "@google-cloud/tasks": "^6.2.3",
@@ -18,6 +18,10 @@
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.18",
+    "sharp": "^0.35.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

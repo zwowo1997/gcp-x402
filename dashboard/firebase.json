@@ -2,6 +2,12 @@
   "hosting": {
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": { "serviceId": "gcp-x402-tokyo", "region": "asia-northeast1" }
+      },
+      { "source": "**", "destination": "/index.html" }
+    ]
   }
 }

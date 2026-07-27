@@ -191,15 +191,29 @@ async function deleteService(service: string) {
   if (operation.name) await waitForOperation(operation.name, "https://run.googleapis.com/v2");
 }
 
+/** GCP deletion is idempotent: a retry after a successful delete sees a 404. */
+async function deleteIfPresent(operation: () => Promise<void>): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    if (!String(error).includes("(404)")) throw error;
+  }
+}
+
 export async function deleteTradingStackResources(resources: TradingResources): Promise<void> {
-  await Promise.allSettled([
-    deleteSubscription(resources.persistSubscription),
-    deleteSubscription(resources.strategySubscription),
-    deleteService(resources.collectorService),
-    deleteService(resources.writerService),
-    deleteService(resources.strategyService),
+  // Do not mark a stack terminal unless every resource is gone. The Cloud Task
+  // will retry this operation; treating 404 as success makes those retries safe.
+  await Promise.all([
+    deleteIfPresent(() => deleteSubscription(resources.persistSubscription)),
+    deleteIfPresent(() => deleteSubscription(resources.strategySubscription)),
+    deleteIfPresent(() => deleteService(resources.collectorService)),
+    deleteIfPresent(() => deleteService(resources.writerService)),
+    deleteIfPresent(() => deleteService(resources.strategyService)),
   ]);
-  await Promise.allSettled([deleteTopic(resources.topic), deleteDatabase(resources.database)]);
+  await Promise.all([
+    deleteIfPresent(() => deleteTopic(resources.topic)),
+    deleteIfPresent(() => deleteDatabase(resources.database)),
+  ]);
 }
 
 /** Remove the shared 100-PU test instance only after the last managed paper stack ends. */
@@ -218,7 +232,10 @@ export async function deleteUnusedTradingSpannerInstance(): Promise<void> {
 }
 
 export async function stopTradingStackResources(resources: TradingResources): Promise<void> {
-  await Promise.all([deleteSubscription(resources.persistSubscription), deleteSubscription(resources.strategySubscription)]);
+  await Promise.all([
+    deleteIfPresent(() => deleteSubscription(resources.persistSubscription)),
+    deleteIfPresent(() => deleteSubscription(resources.strategySubscription)),
+  ]);
 }
 
 export async function resumeTradingStackResources(resources: TradingResources): Promise<void> {

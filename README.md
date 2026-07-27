@@ -13,7 +13,7 @@ margin), settled onchain via x402. The price for each query is computed from a B
 **dry run** before you pay — so it's a *dynamic* paywall, not a flat one.
 
 **Just want to use it?** See the [User Guide](docs/USER-GUIDE.md). TL;DR — tell your agent:
-*“install the skill at https://gcp-x402-837831206506.us-central1.run.app/skill, then help me deploy a storage bucket without a GCP account.”*.
+*“install the skill at https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app/skill, then help me deploy a storage bucket without a GCP account.”*.
 
 See [DESIGN.md](./DESIGN.md) for the full architecture and threat model.
 
@@ -108,7 +108,7 @@ machine-wide):
 
 ```bash
 mkdir -p .claude/skills/gcp-x402 && \
-curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+curl -fsSL https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app/skill \
   -o .claude/skills/gcp-x402/SKILL.md
 ```
 
