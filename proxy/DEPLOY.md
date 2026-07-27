@@ -53,7 +53,8 @@ gcloud secrets add-iam-policy-binding gcp-x402-quote-secret \
   --member="serviceAccount:gcp-x402-run@gcp-x402.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
-# Create RESOURCE_CAPABILITY_SECRET, CLEANUP_TOKEN, and DASHBOARD_TOKEN in
+# Create RESOURCE_CAPABILITY_SECRET, CLEANUP_TOKEN, DASHBOARD_TOKEN,
+# BETA_ACCESS_PASSWORD, and BETA_SESSION_SECRET in
 # Secret Manager using the same pattern, then grant the runtime service account
 # roles/secretmanager.secretAccessor for each secret.
 ```
@@ -70,8 +71,8 @@ gcloud run deploy gcp-x402 \
   --region us-central1 \
   --allow-unauthenticated \
   --service-account gcp-x402-run@gcp-x402.iam.gserviceaccount.com \
-  --cpu 1 --memory 512Mi --timeout 120 \
-  --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest \
+  --cpu 1 --memory 512Mi --timeout 120 --max-instances 1 \
+  --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest,BETA_ACCESS_PASSWORD=gcp-x402-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-beta-session-secret:latest \
   --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=0x90e4071A1b7b1fc9A5d0b7EA6bEB1174F847F079|FACILITATOR_URL=https://x402.org/facilitator|GCP_PROJECT_ID=gcp-x402|MAX_BYTES_PER_QUERY=1073741824|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|MAX_RENTAL_MINUTES=60|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=us-central1|PUBLIC_BASE_URL=https://YOUR-CLOUD-RUN-URL'
 ```
 
@@ -113,3 +114,86 @@ gcloud run services describe gcp-x402 --region us-central1 --format='value(statu
 - **Mainnet:** flip `X402_NETWORK=base` and point `FACILITATOR_URL` at a mainnet
   facilitator when ready — just change the env vars and redeploy.
 - **Scales to zero:** Cloud Run idles at $0 when there's no traffic.
+
+## Tokyo paper-trading stack
+
+This is a separate, **paper-only** feature. It deploys its data and strategy runtime
+in `asia-northeast1` (Tokyo); it does not make an account or activity eligible for any
+exchange where it is restricted. Check Hyperliquid's current terms and local rules
+before ever adding a future execution adapter.
+
+The MCP/proxy remains the payment and lifecycle control plane. For each paid 24-hour
+stack it creates a Pub/Sub topic, a database in one shared 100-PU Tokyo Spanner
+instance, and three private Cloud Run services (collector, writer, strategy). The
+collector uses public data only; the strategy writes simulated orders only. The
+operator's exposure reservation is capped by `MAX_OUTSTANDING_GCP_EXPOSURE_USD=5`.
+When the final managed paper stack expires, fails, or is shut down, the service also
+removes that managed shared Spanner instance. Do not point `TRADING_SPANNER_INSTANCE`
+at an unrelated instance: only instances labelled `managed_by=gcp_x402` are removable.
+
+```bash
+# Run once in the operator project. These are deliberately broad demo-control-plane
+# permissions; replace them with a reviewed custom role before a production launch.
+gcloud services enable pubsub.googleapis.com spanner.googleapis.com
+gcloud artifacts repositories create gcp-x402 --repository-format=docker --location=asia-northeast1
+gcloud iam service-accounts create gcp-x402-trading-runtime --display-name="paper trading runtime"
+gcloud iam service-accounts create gcp-x402-pubsub-push --display-name="Pub/Sub authenticated push"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/pubsub.publisher"
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/spanner.databaseUser"
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/run.admin"
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/pubsub.admin"
+gcloud projects add-iam-policy-binding YOUR_PROJECT \
+  --member="serviceAccount:gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/spanner.admin"
+gcloud iam service-accounts add-iam-policy-binding \
+  gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com \
+  --member="serviceAccount:gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+gcloud iam service-accounts add-iam-policy-binding \
+  gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com \
+  --member="serviceAccount:gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+
+# Pub/Sub needs this only to mint its authenticated Cloud Run push token.
+PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding \
+  gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+
+# Build the immutable, paper-only runtime image.
+gcloud tasks queues create gcp-x402-cleanup --location=asia-northeast1
+gcloud builds submit trading-runtime \
+  --tag asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v1
+```
+
+Deploy a Tokyo control-plane revision (use the actual URL in `PUBLIC_BASE_URL` after
+the first deploy), then set `TRADING_DASHBOARD_URL` to the Firebase Hosting URL:
+
+```bash
+cd proxy
+gcloud run deploy gcp-x402-tokyo --source . --region asia-northeast1 --allow-unauthenticated \
+  --service-account gcp-x402-run@YOUR_PROJECT.iam.gserviceaccount.com \
+  --max-instances 1 \
+  --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest,BETA_ACCESS_PASSWORD=gcp-x402-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-beta-session-secret:latest \
+  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=gcp-x402-trading|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v1|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=24|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=5|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
+```
+
+Deploy the static dashboard after replacing no code—the proxy includes the API URL and
+per-stack capability in its returned dashboard link:
+
+```bash
+firebase deploy --only hosting --config dashboard/firebase.json
+```
+
+The dashboard capability is placed in the URL fragment, so Firebase never receives it.
+It can read its one stack and call only stop, resume, or shutdown for that stack.

@@ -31,6 +31,10 @@ export const config = {
   maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
   maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 5),
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),
+  /** Private-beta password and independent signing key; both come from Secret Manager in production. */
+  betaAccessPassword: reqWhen(process.env.NODE_ENV === "production", "BETA_ACCESS_PASSWORD"),
+  betaSessionSecret: reqWhen(process.env.NODE_ENV === "production", "BETA_SESSION_SECRET"),
+  betaSessionTtlSeconds: num("BETA_SESSION_TTL_SECONDS", 8 * 60 * 60),
   maxRentalMinutes: num("MAX_RENTAL_MINUTES", 60),
   /** HMAC secret for opaque resource-management capabilities. */
   resourceCapabilitySecret: reqWhen(process.env.NODE_ENV === "production", "RESOURCE_CAPABILITY_SECRET"),
@@ -39,6 +43,14 @@ export const config = {
   tasksLocation: process.env.CLOUD_TASKS_LOCATION ?? "us-central1",
   publicBaseUrl: process.env.PUBLIC_BASE_URL?.replace(/\/$/, ""),
   cleanupToken: reqWhen(Boolean(process.env.CLOUD_TASKS_QUEUE), "CLEANUP_TOKEN"),
+  // --- Hyperliquid paper trading -------------------------------------------
+  tradingRegion: process.env.TRADING_REGION ?? "asia-northeast1",
+  tradingSpannerInstance: process.env.TRADING_SPANNER_INSTANCE ?? "gcp-x402-trading",
+  tradingRuntimeServiceAccount: process.env.TRADING_RUNTIME_SERVICE_ACCOUNT,
+  tradingPubsubPushServiceAccount: process.env.TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT,
+  tradingImage: process.env.TRADING_IMAGE,
+  tradingDashboardUrl: process.env.TRADING_DASHBOARD_URL?.replace(/\/$/, ""),
+  tradingLeaseHours: num("TRADING_LEASE_HOURS", 24),
   // --- BigQuery -------------------------------------------------------------
   /** Billing project that runs the jobs (NOT the public-data project). */
   gcpProjectId: req("GCP_PROJECT_ID"),

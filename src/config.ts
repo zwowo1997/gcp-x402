@@ -1,4 +1,4 @@
-import { join, isAbsolute } from "node:path";
+import { dirname, join, isAbsolute } from "node:path";
 
 /**
  * Resolve the keystore path. Defaults to a PER-PROJECT location:
@@ -13,6 +13,12 @@ function resolveWalletFile(): string {
   return join(process.cwd(), ".gcp-x402", "wallet.json");
 }
 
+function resolveBetaSessionFile(): string {
+  const override = process.env.GCP_X402_BETA_SESSION_FILE;
+  if (override) return isAbsolute(override) ? override : join(process.cwd(), override);
+  return join(dirname(resolveWalletFile()), "beta-session.json");
+}
+
 export const config = {
   /** Base URL of the gcp-x402 proxy. Defaults to the hosted deployment. */
   proxyUrl: (process.env.PROXY_URL ?? "https://gcp-x402-837831206506.us-central1.run.app").replace(/\/$/, ""),
@@ -25,6 +31,8 @@ export const config = {
 
   /** Where the auto-generated wallet is stored (per-project by default). */
   walletFile: resolveWalletFile(),
+  /** Short-lived beta session; the plaintext unlock password is never persisted. */
+  betaSessionFile: resolveBetaSessionFile(),
 
   /** Hard ceiling on what a single query may auto-pay, in USD. */
   maxPaymentUsd: Number(process.env.MAX_PAYMENT_USD ?? "1.00"),

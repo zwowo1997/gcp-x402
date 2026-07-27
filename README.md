@@ -26,12 +26,20 @@ The demo also exposes an allowlisted provisioning catalog (`vm.small` and
 Provisioning is limited to Base Sepolia, `us-central1`, a one-hour rental
 window, and a configurable `$5` maximum GCP exposure.
 
+It also includes an opt-in `trading.paper.ema` profile for a **paper-only** Hyperliquid
+BTC perpetual strategy stack. It creates Tokyo (`asia-northeast1`) Pub/Sub, Spanner,
+and three private Cloud Run services, then opens a basic hosted control dashboard.
+The stack uses public market data and simulated orders only: it has no wallet key and
+cannot place testnet or mainnet trades. See [the Tokyo paper-trading runbook](proxy/DEPLOY.md#tokyo-paper-trading-stack).
+
 ## Repo layout
 
 | Path      | What it is                                                                 |
 | --------- | ------------------------------------------------------------------------- |
 | `src/`    | The agent-side MCP server (repo root package). Holds the agent's USDC wallet, auto-pays. |
 | `proxy/`  | The x402 server (Next.js, deploy to Cloud Run). Holds GCP creds + receiving wallet. |
+| `trading-runtime/` | Paper-only, official-SDK-ready market-data, persistence, and strategy image. |
+| `dashboard/` | Minimal Firebase Hosting dashboard for one paper strategy. |
 
 The MCP client lives at the repo root so it installs in one line with
 `npx -y github:zwowo1997/gcp-x402` — no clone, no build step.
@@ -118,6 +126,9 @@ npx -y github:zwowo1997/gcp-x402 query "<sql>"     # run + pay, returns rows
 ```
 
 The agent handles funding prompts, cost-checking, and SQL rules from the skill's context.
+During the private beta, the user must first run `npx -y github:zwowo1997/gcp-x402 unlock`
+in an interactive terminal and type the operator-provided password. Only the resulting
+eight-hour session is stored locally; the password is not persisted.
 
 ### Option B — as an MCP server
 
@@ -161,6 +172,7 @@ To share one wallet across projects, set `WALLET_FILE` to an absolute path (e.g.
 | Tool                    | What it does                                                            |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `wallet_info`           | Show the agent's wallet address, live USDC balance, and how to fund it.|
+| `unlock_service`        | Unlock the private beta for eight hours with the operator password.    |
 | `bigquery_estimate`     | Dry-run a query → exact price + bytes, **without paying or running**.   |
 | `bigquery_query`        | Run a query, auto-pay the per-query USDC price, return rows.            |
 | `list_public_datasets`  | Curated list of popular public datasets + current pricing (free).      |
@@ -168,6 +180,10 @@ To share one wallet across projects, set `WALLET_FILE` to an absolute path (e.g.
 | `provision_resource`    | Provision a paid, expiring demo resource.                              |
 | `provision_status`      | Inspect a provisioned resource.                                        |
 | `provision_delete`      | Delete a provisioned resource.                                         |
+| `trading_catalog`       | List the paper-only Hyperliquid infrastructure profile.                |
+| `trading_deploy_paper`  | Pay and deploy the 24-hour Tokyo paper-trading stack.                  |
+| `trading_status`        | Inspect a paper stack and its lifecycle events.                         |
+| `trading_control`       | Stop, resume, or permanently shut down a paper stack.                  |
 
 ### Operator dashboard
 

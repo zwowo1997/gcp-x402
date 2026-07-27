@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gcp-x402 · Hyperliquid Paper Trading</title>
+  <style>
+    :root { color-scheme: dark; --bg:#071019; --card:#0d1a29; --line:#203149; --text:#e8f0fb; --muted:#8fa3bf; --green:#40d39c; --red:#ff6e7a; --amber:#ffbe55; --blue:#6db5ff; }
+    * { box-sizing:border-box; } body { margin:0; background:radial-gradient(circle at top right,#14304f 0,var(--bg) 42%); color:var(--text); font:14px ui-sans-serif,system-ui,sans-serif; }
+    main { max-width:1400px; margin:auto; padding:28px; } header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:22px; } h1 { margin:0; font-size:25px; } h2 { font-size:15px; margin:0 0 14px; } .muted { color:var(--muted); } .badge { display:inline-block; background:rgba(255,190,85,.15); color:var(--amber); border:1px solid rgba(255,190,85,.35); padding:6px 9px; border-radius:999px; font-weight:700; letter-spacing:.05em; font-size:11px; }
+    .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; } .grid.two { grid-template-columns:1.3fr .7fr; margin-top:12px; } .card { background:rgba(13,26,41,.92); border:1px solid var(--line); border-radius:12px; padding:17px; } .metric { color:var(--muted); font-size:12px; } .value { font-size:25px; font-weight:700; margin-top:7px; } .positive { color:var(--green); } .negative { color:var(--red); }
+    .chart { height:260px; display:flex; align-items:end; gap:3px; padding-top:20px; border-bottom:1px solid var(--line); } .bar { background:linear-gradient(var(--blue),#285f9e); min-width:4px; flex:1; border-radius:3px 3px 0 0; opacity:.8; } table { width:100%; border-collapse:collapse; } th,td { padding:9px 4px; text-align:left; border-top:1px solid var(--line); font-size:12px; } th { color:var(--muted); font-weight:600; border-top:0; } button { background:#1769c2; color:white; border:0; border-radius:7px; padding:9px 11px; font-weight:650; cursor:pointer; } button.danger { background:#a62f41; } button.secondary { background:#263a53; } button:disabled { opacity:.5; cursor:not-allowed; } .controls { display:flex; flex-wrap:wrap; gap:8px; } .status { color:var(--green); } pre { white-space:pre-wrap; color:var(--muted); font-size:12px; }
+    @media(max-width:850px){ .grid,.grid.two{grid-template-columns:1fr 1fr} } @media(max-width:520px){ .grid,.grid.two{grid-template-columns:1fr} main{padding:18px} header{display:block}.badge{margin-top:12px} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Hyperliquid BTC Perp Hedge</h1><p class="muted" id="subtitle">Loading paper-trading workspace…</p></div>
+    <span class="badge">PAPER TRADING · NO REAL ORDERS</span>
+  </header>
+  <section class="grid" id="metrics">
+    <div class="card"><div class="metric">Mode</div><div class="value">Paper</div></div>
+    <div class="card"><div class="metric">Stack status</div><div class="value" id="status">—</div></div>
+    <div class="card"><div class="metric">Lease expiry</div><div class="value" id="expiry">—</div></div>
+    <div class="card"><div class="metric">Region</div><div class="value" id="region">Tokyo</div></div>
+  </section>
+  <section class="grid two">
+    <div class="card"><h2>Live market feed</h2><div class="chart" id="chart"></div><p class="muted" id="feed-note">Waiting for persisted Hyperliquid BTC market data…</p></div>
+    <div class="card"><h2>Strategy summary</h2><table><tbody id="summary"></tbody></table><h2 style="margin-top:20px">Controls</h2><div class="controls"><button data-control="stop">Stop</button><button class="secondary" data-control="resume">Resume</button><button class="danger" data-control="shutdown">Shut down</button></div></div>
+  </section>
+  <section class="grid two">
+    <div class="card"><h2>Provisioned GCP services</h2><table><thead><tr><th>Component</th><th>Resource</th><th>State</th></tr></thead><tbody id="resources"></tbody></table></div>
+    <div class="card"><h2>Activity</h2><table><thead><tr><th>Time</th><th>Event</th></tr></thead><tbody id="events"></tbody></table></div>
+  </section>
+  <p class="muted" id="error"></p>
+</main>
+<script>
+  const stackId = location.pathname.split('/').filter(Boolean).pop();
+  const capability = new URLSearchParams(location.hash.slice(1)).get('capability');
+  const betaSession = new URLSearchParams(location.hash.slice(1)).get('session');
+  const apiBase = new URLSearchParams(location.search).get('api');
+  const headers = { 'x-resource-capability': capability || '', 'x-gcp-x402-session': betaSession || '' };
+  const dollars = value => '$' + Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2});
+  const resourceRows = (resources, status) => Object.entries(resources).map(([name, value]) => `<tr><td>${name.replace(/([A-Z])/g,' $1')}</td><td><code>${value}</code></td><td class="status">${status}</td></tr>`).join('');
+  const draw = market => { const target=document.getElementById('chart'); if(!market?.length){ target.innerHTML=''; return; } const values=market.map(point=>Number(point.mid)); const min=Math.min(...values), max=Math.max(...values), range=max-min||1; target.innerHTML=values.map(value=>`<i class="bar" title="$${value.toLocaleString()}" style="height:${18+((value-min)/range)*78}%"></i>`).join(''); document.getElementById('feed-note').textContent=`${market.length} persisted BTC mid-price snapshots · real public feed · simulated execution only`; };
+  async function load() {
+    if (!stackId || !capability || !betaSession || !apiBase) throw new Error('This dashboard link is incomplete or its beta session expired. Unlock again and re-open the private URL returned by the MCP.');
+    const response = await fetch(`${apiBase}/api/trading/${stackId}`, { headers });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Unable to load stack.');
+    const s=data.stack; document.getElementById('subtitle').textContent=`${s.config.symbol} · EMA ${s.config.fastEma}/${s.config.slowEma} · virtual balance ${dollars(s.config.virtualBalanceUsd)}`;
+    document.getElementById('status').textContent=s.status; document.getElementById('expiry').textContent=new Date(s.expiresAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); document.getElementById('region').textContent=s.resources.collectorService ? 'Tokyo' : '—';
+    const strategy=data.metrics?.strategy||{}; document.getElementById('summary').innerHTML=[['Market','BTC perpetual'],['Execution','Simulated only'],['Signal',strategy.last_signal||'warming up'],['Equity',strategy.equity ? dollars(strategy.equity) : '—'],['Daily P&L',strategy.daily_pnl ? dollars(strategy.daily_pnl) : '$0'],['Max order',dollars(s.config.maxOrderNotionalUsd)],['Max position',dollars(s.config.maxPositionNotionalUsd)],['Daily loss limit',dollars(s.config.maxDailyLossUsd)]].map(([a,b])=>`<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
+    document.getElementById('resources').innerHTML=resourceRows(s.resources,s.status); document.getElementById('events').innerHTML=(data.events||[]).map(e=>`<tr><td>${new Date(e.createdAt).toLocaleTimeString()}</td><td>${e.message}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">No events yet.</td></tr>';
+    draw(data.metrics?.market); if(data.metrics?.unavailable) document.getElementById('feed-note').textContent='Market telemetry is warming up or temporarily unavailable.';
+  }
+  document.querySelectorAll('[data-control]').forEach(button=>button.addEventListener('click',async()=>{ if(button.dataset.control==='shutdown'&&!confirm('Delete this dedicated paper-trading stack?')) return; button.disabled=true; try { const r=await fetch(`${apiBase}/api/trading/${stackId}/control`,{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({control:button.dataset.control})}); if(!r.ok) throw new Error((await r.json()).error); await load(); } catch(e){document.getElementById('error').textContent=e.message;} finally{button.disabled=false;} }));
+  load().catch(e=>document.getElementById('error').textContent=e.message); setInterval(()=>load().catch(()=>{}),5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+websockets==15.0.1
+google-cloud-pubsub==2.29.0
+google-cloud-spanner==3.53.0
+hyperliquid-python-sdk==0.23.0

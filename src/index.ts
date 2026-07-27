@@ -5,7 +5,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { estimate, query, listDatasets, walletInfo, walletAddress, provisionCatalog, provisionResource, provisionStatus, provisionDelete } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, walletAddress, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService } from "./client.js";
 import { freshlyCreated } from "./wallet.js";
 import { config } from "./config.js";
 import { runCli } from "./cli.js";
@@ -14,6 +14,19 @@ const server = new McpServer({
   name: "gcp-x402",
   version: "0.1.0",
 });
+
+server.registerTool(
+  "unlock_service",
+  {
+    title: "Unlock the private gcp-x402 beta",
+    description: "Unlock this MCP process for eight hours with the operator-provided private-beta password. The password is sent only to the unlock endpoint and is never persisted; only the signed session is stored locally.",
+    inputSchema: { password: z.string().min(1).max(256).describe("Private-beta password supplied by the operator.") },
+  },
+  async ({ password }) => {
+    const result = await unlockService(password);
+    return { content: [{ type: "text", text: `Private beta unlocked until ${result.expiresAt}.` }] };
+  },
+);
 
 server.registerTool(
   "bigquery_estimate",
@@ -47,6 +60,11 @@ server.registerTool("provision_catalog", { title: "List provisionable GCP resour
 server.registerTool("provision_resource", { title: "Provision a GCP resource", description: "Provision an allowlisted ephemeral GCP resource. The request is paid via x402 and automatically expires.", inputSchema: { resourceId: z.enum(["vm.small", "storage.small"]), durationMinutes: z.number().int().min(1).max(60).optional() } }, async ({ resourceId, durationMinutes }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionResource({ resourceId, durationMinutes }), null, 2) }] }));
 server.registerTool("provision_status", { title: "Get provisioning status", description: "Get the status of a provisioned resource by job ID and its capability returned at creation.", inputSchema: { jobId: z.string(), capability: z.string() } }, async ({ jobId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionStatus(jobId, capability), null, 2) }] }));
 server.registerTool("provision_delete", { title: "Delete a provisioned resource", description: "Delete a provisioned resource using the capability returned at creation.", inputSchema: { jobId: z.string(), capability: z.string() } }, async ({ jobId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionDelete(jobId, capability), null, 2) }] }));
+
+server.registerTool("trading_catalog", { title: "List Tokyo paper-trading infrastructure", description: "List the only supported Hyperliquid profile: a 24-hour Tokyo BTC paper-trading stack using real market data and simulated orders. It never trades or requires a Hyperliquid account.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await tradingCatalog(), null, 2) }] }));
+server.registerTool("trading_deploy_paper", { title: "Deploy a Hyperliquid BTC paper-trading stack", description: "Pay via x402 to create a 24-hour Tokyo GCP stack: Cloud Run feed collector, Pub/Sub, Spanner, simulated EMA strategy, and dashboard. This is permanently paper-only; it cannot place testnet or mainnet orders.", inputSchema: { fastEma: z.number().int().min(2).optional(), slowEma: z.number().int().min(3).optional(), virtualBalanceUsd: z.number().positive().optional(), maxOrderNotionalUsd: z.number().positive().optional(), maxPositionNotionalUsd: z.number().positive().optional(), maxDailyLossUsd: z.number().positive().optional(), slippageBps: z.number().min(0).max(100).optional() } }, async (input) => ({ content: [{ type: "text", text: JSON.stringify(await deployPaperTrading(input), null, 2) }] }));
+server.registerTool("trading_status", { title: "Inspect a paper-trading stack", description: "Return current GCP resources, paper strategy state, expiry, and audit events. Requires the capability returned on deployment.", inputSchema: { stackId: z.string(), capability: z.string() } }, async ({ stackId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await tradingStatus(stackId, capability), null, 2) }] }));
+server.registerTool("trading_control", { title: "Control a paper-trading stack", description: "Start, stop, resume, or permanently shut down a paper-trading stack. Stop prevents new simulated orders. Shutdown deletes its dedicated runtime resources.", inputSchema: { stackId: z.string(), capability: z.string(), control: z.enum(["start", "stop", "resume", "shutdown"]) } }, async ({ stackId, capability, control }) => ({ content: [{ type: "text", text: JSON.stringify(await controlPaperTrading(stackId, capability, control), null, 2) }] }));
 
 server.registerTool(
   "bigquery_query",
