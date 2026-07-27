@@ -52,6 +52,15 @@ export async function listTradingStacks(): Promise<TradingStackRecord[]> {
   return snap ? snap.docs.map((doc) => doc.data() as TradingStackRecord) : [...memoryStacks.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export async function findTradingStackByRequestKey(requestKey: string): Promise<TradingStackRecord | null> {
+  const firestoreDb = db();
+  if (firestoreDb) {
+    const snap = await firestoreDb.collection("trading_stacks").where("requestKey", "==", requestKey).limit(1).get();
+    return snap.empty ? null : snap.docs[0].data() as TradingStackRecord;
+  }
+  return [...memoryStacks.values()].find((stack) => stack.requestKey === requestKey) ?? null;
+}
+
 export async function addTradingEvent(event: TradingEvent): Promise<void> {
   memoryEvents.set(event.stackId, [...(memoryEvents.get(event.stackId) ?? []), event].slice(-100));
   await db()?.collection("trading_stacks").doc(event.stackId).collection("events").doc(event.id).set(event);

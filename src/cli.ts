@@ -6,6 +6,8 @@
 // summary on stderr, the actual data (rows / json) on stdout.
 
 import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService } from "./client.js";
+import { config } from "./config.js";
+import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
 
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
 
@@ -26,6 +28,8 @@ Commands:
   trading-deploy          Deploy a paid 24-hour BTC paper-trading stack.
   trading-status <id> <capability> Inspect a paper-trading stack.
   trading-control <id> <capability> <start|stop|resume|shutdown> Control a paper-trading stack.
+  trading-receipt <id>   Recover a locally saved paid trading receipt/capability.
+  trading-receipts       List locally saved trading deployment receipts.
   help                   Show this message.
 
 Only bigquery-public-data tables are queryable; read-only (no DML/DDL).`;
@@ -40,6 +44,8 @@ export async function runCli(argv: string[]): Promise<number> {
       if (!password) return usageError("unlock");
       const result = await unlockService(password);
       console.log(`unlocked_until: ${result.expiresAt}`);
+      console.log(`project_directory: ${process.cwd()}`);
+      console.log(`session_file: ${config.betaSessionFile}`);
       return 0;
     }
     case "wallet": {
@@ -104,6 +110,16 @@ export async function runCli(argv: string[]): Promise<number> {
     case "trading-status":
       if (!argv[1] || !argv[2]) return usageError("trading-status <stack-id> <capability>");
       console.log(JSON.stringify(await tradingStatus(argv[1], argv[2]), null, 2));
+      return 0;
+    case "trading-receipt": {
+      if (!argv[1]) return usageError("trading-receipt <stack-id>");
+      const receipt = getTradingReceipt(argv[1]);
+      if (!receipt) return usageError(`No local receipt found for ${argv[1]}`);
+      console.log(JSON.stringify(receipt, null, 2));
+      return 0;
+    }
+    case "trading-receipts":
+      console.log(JSON.stringify(listTradingReceipts().map(({ capability: _capability, ...receipt }) => receipt), null, 2));
       return 0;
     case "trading-control":
       if (!argv[1] || !argv[2] || !argv[3]) return usageError("trading-control <stack-id> <capability> <start|stop|resume|shutdown>");

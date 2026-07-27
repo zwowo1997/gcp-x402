@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { deleteTradingStackResources, deleteUnusedTradingSpannerInstance, resumeTradingStackResources, stopTradingStackResources } from "./provisioning";
+import { deleteTradingStackResources, resumeTradingStackResources, stopTradingStackResources } from "./provisioning";
 import { addTradingEvent, getTradingStack, saveTradingStack } from "./store";
 import { type TradingControl, type TradingStackRecord } from "./types";
 
@@ -12,7 +12,6 @@ export async function controlTradingStack(stack: TradingStackRecord, control: Tr
     await deleteTradingStackResources(stack.resources);
     const next = { ...stack, status: "shutdown" as const, updatedAt: new Date().toISOString() };
     await saveTradingStack(next); await event(next, "shutdown", "Paper trading stack permanently shut down.");
-    await deleteUnusedTradingSpannerInstance().catch(() => undefined);
     return next;
   }
   if (control === "stop") {
@@ -39,6 +38,5 @@ export async function expireTradingStack(stackId: string): Promise<boolean> {
   await deleteTradingStackResources(stack.resources);
   const next = { ...stack, status: "expired" as const, updatedAt: new Date().toISOString() };
   await saveTradingStack(next); await event(next, "expired", "24-hour paper trading lease expired and its GCP runtime resources were deleted.");
-  await deleteUnusedTradingSpannerInstance().catch(() => undefined);
   return true;
 }

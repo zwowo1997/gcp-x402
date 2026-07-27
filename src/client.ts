@@ -4,11 +4,14 @@
 // signs an EIP-3009 USDC authorization with the agent's wallet, and retries.
 
 import { wrapFetchWithPayment, decodeXPaymentResponse } from "x402-fetch";
+import { randomUUID } from "node:crypto";
 import { createPublicClient, http, formatUnits } from "viem";
 import { config } from "./config.js";
 import { getAccount } from "./wallet.js";
 import { networkById, type ClientNetwork } from "./networks.js";
 import { betaSessionToken, saveBetaSession } from "./beta-session.js";
+import { lockedServiceHelp } from "./project-context.js";
+import { clearPendingTradingRequest, pendingTradingRequestId, saveTradingReceipt, type TradingReceipt } from "./trading-receipt.js";
 
 const account = getAccount();
 
@@ -24,6 +27,14 @@ const serviceFetch: typeof fetch = (input, init = {}) => {
 };
 
 const paidFetch = wrapFetchWithPayment(serviceFetch, account, maxAutoPayBaseUnits);
+
+async function serviceError(response: Response, operation: string): Promise<Error> {
+  const body = await response.text();
+  if (response.status === 401) {
+    return new Error(`${operation} failed (401): ${body}\n\n${lockedServiceHelp()}`);
+  }
+  return new Error(`${operation} failed (${response.status}): ${body}`);
+}
 
 export const walletAddress = account.address;
 
@@ -213,7 +224,7 @@ export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; du
 export interface ProvisionResult { jobId: string; resourceId: string; expiresAt: string; maxPriceUsd: number; capability: string; }
 export async function provisionCatalog(): Promise<unknown> {
   const res = await serviceFetch(new URL("/api/catalog", config.proxyUrl));
-  if (!res.ok) throw new Error(`/api/catalog failed: ${res.status}`);
+  if (!res.ok) throw await serviceError(res, "Provision catalog");
   return res.json();
 }
 export async function provisionResource(input: ProvisionRequest): Promise<ProvisionResult> {
@@ -254,21 +265,31 @@ export interface PaperTradingDeployment {
   capability: string;
   dashboardUrl?: string;
   paperOnly: true;
+  resources?: Record<string, string>;
 }
 
 export async function tradingCatalog(): Promise<unknown> {
   const res = await serviceFetch(new URL("/api/trading/catalog", config.proxyUrl));
-  if (!res.ok) throw new Error(`/api/trading/catalog failed: ${res.status}`);
+  if (!res.ok) throw await serviceError(res, "Trading catalog");
   return res.json();
 }
 
 export async function deployPaperTrading(configInput: PaperTradingConfig = {}): Promise<PaperTradingDeployment> {
+  const requestId = pendingTradingRequestId(configInput, randomUUID);
   const res = await paidFetch(new URL("/api/trading/deploy", config.proxyUrl), {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profileId: "trading.paper.ema", config: configInput }),
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profileId: "trading.paper.ema", requestId, config: configInput }),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`Paper trading deployment failed (${res.status}): ${text}`);
-  return JSON.parse(text);
+  if (!res.ok) {
+    const terminal = (res.status === 409 && text.includes("finished without a reusable result"))
+      || (res.status === 502 && text.includes("Paper trading provisioning failed"));
+    if (terminal) clearPendingTradingRequest(requestId);
+    throw new Error(`Paper trading deployment failed (${res.status}): ${text}`);
+  }
+  const deployment = JSON.parse(text) as PaperTradingDeployment;
+  saveTradingReceipt({ ...deployment, savedAt: new Date().toISOString() } satisfies TradingReceipt);
+  clearPendingTradingRequest(requestId);
+  return deployment;
 }
 
 export async function tradingStatus(stackId: string, capability: string): Promise<unknown> {

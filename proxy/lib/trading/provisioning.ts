@@ -1,12 +1,10 @@
 import { google } from "googleapis";
 import { config } from "../config";
 import { type PaperStrategyConfig, type TradingResources } from "./types";
-import { listTradingStacks } from "./store";
+import { sharedTradingSchema, tenantDeleteMutations } from "./shared-spanner";
+import { tradingResourceName } from "./resource-name";
 
 const managedBy = "gcp_x402";
-
-function idPart(value: string) { return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 24); }
-function resourceName(prefix: string, stackId: string) { return `${prefix}-${idPart(stackId)}`.slice(0, 49); }
 
 async function accessToken(): Promise<string> {
   const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
@@ -44,44 +42,31 @@ function requiredRuntimeConfig() {
 
 export function tradingResources(stackId: string): TradingResources {
   return {
-    collectorService: resourceName("hl-feed", stackId),
-    writerService: resourceName("hl-writer", stackId),
-    strategyService: resourceName("hl-paper", stackId),
-    topic: resourceName("hl-market", stackId),
-    persistSubscription: resourceName("hl-persist", stackId),
-    strategySubscription: resourceName("hl-strategy", stackId),
-    database: resourceName("hl", stackId).replace(/-/g, "_"),
+    collectorService: tradingResourceName("hl-feed", stackId),
+    writerService: tradingResourceName("hl-writer", stackId),
+    strategyService: tradingResourceName("hl-paper", stackId),
+    topic: tradingResourceName("hl-market", stackId),
+    persistSubscription: tradingResourceName("hl-persist", stackId),
+    strategySubscription: tradingResourceName("hl-strategy", stackId),
+    tenantId: stackId,
+    database: config.tradingSpannerDatabase,
   };
 }
 
-async function ensureSpannerInstance(): Promise<void> {
-  const instancePath = `projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}`;
+async function ensureSharedDatabase(): Promise<void> {
+  const databasePath = `projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}/databases/${config.tradingSpannerDatabase}`;
   try {
-    await api(`https://spanner.googleapis.com/v1/${instancePath}`);
+    await api(`https://spanner.googleapis.com/v1/${databasePath}`);
     return;
   } catch (error) {
     if (!String(error).includes("(404)")) throw error;
   }
-  const operation = await api<{ name: string }>(`https://spanner.googleapis.com/v1/projects/${config.gcpProjectId}/instances?instanceId=${encodeURIComponent(config.tradingSpannerInstance)}`, {
-    method: "POST",
-    body: JSON.stringify({ config: `projects/${config.gcpProjectId}/instanceConfigs/regional-${config.tradingRegion}`, displayName: "gcp-x402 trading", processingUnits: 100, labels: { managed_by: managedBy } }),
-  });
-  await waitForOperation(operation.name, "https://spanner.googleapis.com/v1");
-}
-
-async function createDatabase(resources: TradingResources): Promise<void> {
   const path = `projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}/databases`;
   const operation = await api<{ name: string }>(`https://spanner.googleapis.com/v1/${path}`, {
     method: "POST",
     body: JSON.stringify({
-      createStatement: `CREATE DATABASE \`${resources.database}\``,
-      extraStatements: [
-        "CREATE TABLE MarketSnapshots (event_id STRING(64) NOT NULL, observed_at TIMESTAMP NOT NULL, symbol STRING(16) NOT NULL, mid FLOAT64, raw_json STRING(MAX), commit_ts TIMESTAMP OPTIONS (allow_commit_timestamp=true)) PRIMARY KEY (event_id)",
-        "CREATE TABLE Candles (candle_id STRING(64) NOT NULL, opened_at TIMESTAMP NOT NULL, symbol STRING(16) NOT NULL, open FLOAT64, high FLOAT64, low FLOAT64, close FLOAT64, volume FLOAT64) PRIMARY KEY (candle_id)",
-        "CREATE TABLE StrategyState (state_key STRING(64) NOT NULL, updated_at TIMESTAMP NOT NULL, payload STRING(MAX)) PRIMARY KEY (state_key)",
-        "CREATE TABLE SimulatedOrders (order_id STRING(64) NOT NULL, created_at TIMESTAMP NOT NULL, side STRING(8) NOT NULL, quantity FLOAT64, price FLOAT64, status STRING(24), payload STRING(MAX)) PRIMARY KEY (order_id)",
-        "CREATE TABLE StackEvents (event_id STRING(64) NOT NULL, created_at TIMESTAMP NOT NULL, type STRING(32), message STRING(MAX), payload STRING(MAX)) PRIMARY KEY (event_id)",
-      ],
+      createStatement: `CREATE DATABASE \`${config.tradingSpannerDatabase}\``,
+      extraStatements: sharedTradingSchema,
     }),
   });
   await waitForOperation(operation.name, "https://spanner.googleapis.com/v1");
@@ -111,7 +96,7 @@ async function grantPubsubInvoker(service: string): Promise<void> {
   });
 }
 
-async function createService(service: string, role: "collector" | "writer" | "strategy", topic: string, database: string, strategyConfig: PaperStrategyConfig): Promise<string> {
+async function createService(service: string, role: "collector" | "writer" | "strategy", topic: string, resources: TradingResources, strategyConfig: PaperStrategyConfig): Promise<string> {
   const runtime = requiredRuntimeConfig();
   const operation = await api<{ name: string }>(`https://run.googleapis.com/v2/projects/${config.gcpProjectId}/locations/${config.tradingRegion}/services?serviceId=${encodeURIComponent(service)}`, {
     method: "POST",
@@ -129,7 +114,8 @@ async function createService(service: string, role: "collector" | "writer" | "st
             { name: "GCP_PROJECT_ID", value: config.gcpProjectId },
             { name: "PUBSUB_TOPIC", value: topic },
             { name: "SPANNER_INSTANCE", value: config.tradingSpannerInstance },
-            { name: "SPANNER_DATABASE", value: database },
+            { name: "SPANNER_DATABASE", value: resources.database },
+            { name: "TENANT_ID", value: resources.tenantId },
             { name: "HYPERLIQUID_WS_URL", value: "wss://api.hyperliquid.xyz/ws" },
             { name: "FAST_EMA", value: String(strategyConfig.fastEma) },
             { name: "SLOW_EMA", value: String(strategyConfig.slowEma) },
@@ -166,16 +152,15 @@ async function createPushSubscription(subscription: string, topic: string, endpo
 }
 
 export async function createTradingStackResources(resources: TradingResources, strategyConfig: PaperStrategyConfig): Promise<void> {
-  await ensureSpannerInstance();
-  const created: Array<() => Promise<void>> = [];
+  await ensureSharedDatabase();
+  const created: Array<() => Promise<void>> = [() => deleteTenantRows(resources)];
   try {
-    await createDatabase(resources); created.push(() => deleteDatabase(resources.database));
     await createTopic(resources.topic); created.push(() => deleteTopic(resources.topic));
-    const writerUrl = await createService(resources.writerService, "writer", resources.topic, resources.database, strategyConfig); created.push(() => deleteService(resources.writerService));
+    const writerUrl = await createService(resources.writerService, "writer", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.writerService));
     await createPushSubscription(resources.persistSubscription, resources.topic, writerUrl); created.push(() => deleteSubscription(resources.persistSubscription));
-    const strategyUrl = await createService(resources.strategyService, "strategy", resources.topic, resources.database, strategyConfig); created.push(() => deleteService(resources.strategyService));
+    const strategyUrl = await createService(resources.strategyService, "strategy", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.strategyService));
     await createPushSubscription(resources.strategySubscription, resources.topic, strategyUrl); created.push(() => deleteSubscription(resources.strategySubscription));
-    const collectorUrl = await createService(resources.collectorService, "collector", resources.topic, resources.database, strategyConfig); created.push(() => deleteService(resources.collectorService));
+    const collectorUrl = await createService(resources.collectorService, "collector", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.collectorService));
     if (!collectorUrl) throw new Error("Cloud Run collector did not return a URL.");
   } catch (error) {
     await Promise.all(created.reverse().map((cleanup) => cleanup().catch(() => undefined)));
@@ -185,7 +170,23 @@ export async function createTradingStackResources(resources: TradingResources, s
 
 async function deleteSubscription(subscription: string) { await api(`https://pubsub.googleapis.com/v1/projects/${config.gcpProjectId}/subscriptions/${subscription}`, { method: "DELETE" }); }
 async function deleteTopic(topic: string) { await api(`https://pubsub.googleapis.com/v1/projects/${config.gcpProjectId}/topics/${topic}`, { method: "DELETE" }); }
-async function deleteDatabase(database: string) { await api(`https://spanner.googleapis.com/v1/projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}/databases/${database}`, { method: "DELETE" }); }
+async function deleteTenantRows(resources: TradingResources) {
+  const database = `projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}/databases/${resources.database}`;
+  const result = await api<{ session?: Array<{ name: string }> }>(`https://spanner.googleapis.com/v1/${database}/sessions:batchCreate`, {
+    method: "POST",
+    body: JSON.stringify({ sessionCount: 1 }),
+  });
+  const session = result.session?.[0];
+  if (!session) throw new Error("Spanner did not create a cleanup session.");
+  try {
+    await api(`https://spanner.googleapis.com/v1/${session.name}:commit`, {
+      method: "POST",
+      body: JSON.stringify({ singleUseTransaction: { readWrite: {} }, mutations: tenantDeleteMutations(resources) }),
+    });
+  } finally {
+    await api(`https://spanner.googleapis.com/v1/${session.name}`, { method: "DELETE" }).catch(() => undefined);
+  }
+}
 async function deleteService(service: string) {
   const operation = await api<{ name?: string }>(serviceUrl(service), { method: "DELETE" });
   if (operation.name) await waitForOperation(operation.name, "https://run.googleapis.com/v2");
@@ -212,23 +213,8 @@ export async function deleteTradingStackResources(resources: TradingResources): 
   ]);
   await Promise.all([
     deleteIfPresent(() => deleteTopic(resources.topic)),
-    deleteIfPresent(() => deleteDatabase(resources.database)),
+    deleteIfPresent(() => deleteTenantRows(resources)),
   ]);
-}
-
-/** Remove the shared 100-PU test instance only after the last managed paper stack ends. */
-export async function deleteUnusedTradingSpannerInstance(): Promise<void> {
-  const active = (await listTradingStacks()).some((stack) => !["shutdown", "expired", "failed"].includes(stack.status));
-  if (active) return;
-  const instanceUrl = `https://spanner.googleapis.com/v1/projects/${config.gcpProjectId}/instances/${config.tradingSpannerInstance}`;
-  try {
-    const instance = await api<{ labels?: Record<string, string> }>(instanceUrl);
-    if (instance.labels?.managed_by !== managedBy) return;
-    const operation = await api<{ name?: string }>(instanceUrl, { method: "DELETE" });
-    if (operation.name) await waitForOperation(operation.name, "https://spanner.googleapis.com/v1");
-  } catch (error) {
-    if (!String(error).includes("(404)")) throw error;
-  }
 }
 
 export async function stopTradingStackResources(resources: TradingResources): Promise<void> {

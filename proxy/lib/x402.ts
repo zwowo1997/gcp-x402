@@ -39,6 +39,8 @@ export function buildRequirements(args: {
   description: string;
   /** Signed quote token, surfaced so the client can display the cost. */
   quoteToken: string;
+  /** Long-running provisioning needs a wider authorization window than queries. */
+  maxTimeoutSeconds?: number;
 }): PaymentRequirements {
   const net = config.network;
   return {
@@ -49,7 +51,7 @@ export function buildRequirements(args: {
     description: args.description,
     mimeType: "application/json",
     payTo: config.payTo,
-    maxTimeoutSeconds: config.quoteTtlSeconds,
+    maxTimeoutSeconds: args.maxTimeoutSeconds ?? config.quoteTtlSeconds,
     asset: net.usdcAddress,
     extra: {
       // EIP-712 domain the client needs to sign the USDC authorization.

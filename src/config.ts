@@ -33,6 +33,10 @@ export const config = {
   walletFile: resolveWalletFile(),
   /** Short-lived beta session; the plaintext unlock password is never persisted. */
   betaSessionFile: resolveBetaSessionFile(),
+  /** Local recovery store for paid trading deployment receipts. */
+  tradingReceiptsFile: join(dirname(resolveWalletFile()), "trading-receipts.json"),
+  /** In-flight request IDs survive transport failures so retries cannot pay twice. */
+  tradingPendingFile: join(dirname(resolveWalletFile()), "trading-pending.json"),
 
   /** Hard ceiling on what a single query may auto-pay, in USD. */
   maxPaymentUsd: Number(process.env.MAX_PAYMENT_USD ?? "1.00"),

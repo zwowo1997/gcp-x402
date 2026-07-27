@@ -62,7 +62,7 @@ server.registerTool("provision_status", { title: "Get provisioning status", desc
 server.registerTool("provision_delete", { title: "Delete a provisioned resource", description: "Delete a provisioned resource using the capability returned at creation.", inputSchema: { jobId: z.string(), capability: z.string() } }, async ({ jobId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await provisionDelete(jobId, capability), null, 2) }] }));
 
 server.registerTool("trading_catalog", { title: "List Tokyo paper-trading infrastructure", description: "List the only supported Hyperliquid profile: a 24-hour Tokyo BTC paper-trading stack using real market data and simulated orders. It never trades or requires a Hyperliquid account.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await tradingCatalog(), null, 2) }] }));
-server.registerTool("trading_deploy_paper", { title: "Deploy a Hyperliquid BTC paper-trading stack", description: "Pay via x402 to create a 24-hour Tokyo GCP stack: Cloud Run feed collector, Pub/Sub, Spanner, simulated EMA strategy, and dashboard. This is permanently paper-only; it cannot place testnet or mainnet orders.", inputSchema: { fastEma: z.number().int().min(2).optional(), slowEma: z.number().int().min(3).optional(), virtualBalanceUsd: z.number().positive().optional(), maxOrderNotionalUsd: z.number().positive().optional(), maxPositionNotionalUsd: z.number().positive().optional(), maxDailyLossUsd: z.number().positive().optional(), slippageBps: z.number().min(0).max(100).optional() } }, async (input) => ({ content: [{ type: "text", text: JSON.stringify(await deployPaperTrading(input), null, 2) }] }));
+server.registerTool("trading_deploy_paper", { title: "Deploy a Hyperliquid BTC paper-trading stack", description: "Pay via x402 to create a 24-hour Tokyo GCP stack: dedicated Pub/Sub and Cloud Run feed/writer/strategy services, renter-isolated rows in the operator's shared Spanner database, and a Firebase dashboard. This is permanently paper-only; it cannot place testnet or mainnet orders.", inputSchema: { fastEma: z.number().int().min(2).optional(), slowEma: z.number().int().min(3).optional(), virtualBalanceUsd: z.number().positive().optional(), maxOrderNotionalUsd: z.number().positive().optional(), maxPositionNotionalUsd: z.number().positive().optional(), maxDailyLossUsd: z.number().positive().optional(), slippageBps: z.number().min(0).max(100).optional() } }, async (input) => ({ content: [{ type: "text", text: JSON.stringify(await deployPaperTrading(input), null, 2) }] }));
 server.registerTool("trading_status", { title: "Inspect a paper-trading stack", description: "Return current GCP resources, paper strategy state, expiry, and audit events. Requires the capability returned on deployment.", inputSchema: { stackId: z.string(), capability: z.string() } }, async ({ stackId, capability }) => ({ content: [{ type: "text", text: JSON.stringify(await tradingStatus(stackId, capability), null, 2) }] }));
 server.registerTool("trading_control", { title: "Control a paper-trading stack", description: "Start, stop, resume, or permanently shut down a paper-trading stack. Stop prevents new simulated orders. Shutdown deletes its dedicated runtime resources.", inputSchema: { stackId: z.string(), capability: z.string(), control: z.enum(["start", "stop", "resume", "shutdown"]) } }, async ({ stackId, capability, control }) => ({ content: [{ type: "text", text: JSON.stringify(await controlPaperTrading(stackId, capability, control), null, 2) }] }));
 
@@ -140,7 +140,10 @@ async function main() {
   // with no args, run as an MCP server over stdio (used by MCP clients).
   const cliArgs = process.argv.slice(2);
   if (cliArgs.length > 0) {
-    process.exit(await runCli(cliArgs));
+    // Do not call process.exit() here: stdout may still be buffered when another
+    // agent redirects the JSON result, which can discard a newly issued capability.
+    process.exitCode = await runCli(cliArgs);
+    return;
   }
 
   // Diagnostics go to stderr — stdout is the MCP transport.
@@ -157,5 +160,5 @@ async function main() {
 
 main().catch((err) => {
   console.error("Fatal:", err);
-  process.exit(1);
+  process.exitCode = 1;
 });

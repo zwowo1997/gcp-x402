@@ -27,8 +27,9 @@ Provisioning is limited to Base Sepolia, `us-central1`, a one-hour rental
 window, and a configurable `$5` maximum GCP exposure.
 
 It also includes an opt-in `trading.paper.ema` profile for a **paper-only** Hyperliquid
-BTC perpetual strategy stack. It creates Tokyo (`asia-northeast1`) Pub/Sub, Spanner,
-and three private Cloud Run services, then opens a basic hosted control dashboard.
+BTC perpetual strategy stack. It creates Tokyo (`asia-northeast1`) Pub/Sub and Cloud
+Run services, with renter-isolated rows in an operator-owned shared Spanner database,
+then opens a basic hosted control dashboard.
 The stack uses public market data and simulated orders only: it has no wallet key and
 cannot place testnet or mainnet trades. See [the Tokyo paper-trading runbook](proxy/DEPLOY.md#tokyo-paper-trading-stack).
 
@@ -163,6 +164,15 @@ The client **generates its own wallet on first run, per project** (saved to
 paste. On startup it prints the new address; the user just sends Base USDC to it. The
 agent can show the address + balance anytime via the `wallet_info` tool. Each project
 gets its own wallet, so a fresh project = a fresh first-run/funding flow.
+
+The beta session is stored beside the project wallet. Always run `unlock` from the
+same working directory where the agent runs later commands. For a path containing
+spaces, use an explicit quoted directory first:
+
+```bash
+cd "/absolute/path/to/agent project"
+npx -y github:zwowo1997/gcp-x402 unlock
+```
 
 To share one wallet across projects, set `WALLET_FILE` to an absolute path (e.g.
 `~/.gcp-x402/wallet.json`). To bring your own key, set `WALLET_PRIVATE_KEY`.
