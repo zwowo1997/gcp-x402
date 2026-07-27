@@ -9,6 +9,7 @@ import { PAPER_TRADING_PROFILE, defaultPaperConfig } from "@/lib/trading/catalog
 import { createTradingStackResources, deleteTradingStackResources, tradingResources } from "@/lib/trading/provisioning";
 import { addTradingEvent, findTradingStackByRequestKey, reserveTradingStack, saveTradingStack } from "@/lib/trading/store";
 import { type PaperStrategyConfig, type TradingStackRecord } from "@/lib/trading/types";
+import { tradingCostBreakdown, tradingCostSummary } from "@/lib/trading/costs";
 import { recordTransaction } from "@/lib/store";
 import { BETA_SESSION_HEADER, requireBetaSession } from "@/lib/beta";
 
@@ -17,7 +18,13 @@ export const runtime = "nodejs";
 function deploymentResponse(stack: TradingStackRecord, betaSession: string): NextResponse {
   const capability = issueResourceCapability(stack.id, stack.payer);
   const dashboardUrl = config.tradingDashboardUrl ? `${config.tradingDashboardUrl}/strategy/${stack.id}#capability=${encodeURIComponent(capability)}&session=${encodeURIComponent(betaSession)}` : undefined;
-  return NextResponse.json({ stackId: stack.id, mode: "paper", region: config.tradingRegion, expiresAt: stack.expiresAt, maxPriceUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, capability, dashboardUrl, resources: stack.resources, paperOnly: true });
+  return NextResponse.json({ stackId: stack.id, mode: "paper", region: config.tradingRegion, expiresAt: stack.expiresAt, maxPriceUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, capability, dashboardUrl, resources: stack.resources, costBreakdown: tradingCostBreakdown(stack.resources), costSummary: tradingCostSummary(stack.resources), paperOnly: true });
+}
+
+function existingReservationResponse(stack: TradingStackRecord, betaSession: string): NextResponse {
+  if (stack.status === "running" && stack.settledAmountUsd > 0) return deploymentResponse(stack, betaSession);
+  if (["payment_pending", "provisioning"].includes(stack.status)) return NextResponse.json({ error: "This deployment is already in progress.", stackId: stack.id, status: stack.status, retryable: true }, { status: 409 });
+  return NextResponse.json({ error: "This deployment request already finished without a reusable result. Submit a fresh payment request.", stackId: stack.id, status: stack.status, retryable: false }, { status: 409 });
 }
 
 export async function POST(req: NextRequest) {
@@ -41,11 +48,7 @@ export async function POST(req: NextRequest) {
   try { payment = decodePaymentHeader(header); } catch { return NextResponse.json(paymentRequiredBody(requirements, "Malformed X-PAYMENT header."), { status: 402 }); }
   const requestKey = body.requestId?.trim() || sha256(JSON.stringify(payment.payload));
   const existing = await findTradingStackByRequestKey(requestKey);
-  if (existing) {
-    if (existing.status === "running" && existing.settledAmountUsd > 0) return deploymentResponse(existing, req.headers.get(BETA_SESSION_HEADER) ?? "");
-    if (["payment_pending", "provisioning"].includes(existing.status)) return NextResponse.json({ error: "This deployment is already in progress.", stackId: existing.id, status: existing.status }, { status: 409 });
-    return NextResponse.json({ error: "This deployment request already finished without a reusable result. Submit a fresh payment request." }, { status: 409 });
-  }
+  if (existing) return existingReservationResponse(existing, req.headers.get(BETA_SESSION_HEADER) ?? "");
   const verification = await verify(payment, requirements).catch((error) => ({ isValid: false, invalidReason: (error as Error).message }));
   if (!verification.isValid) return NextResponse.json(paymentRequiredBody(requirements, verification.invalidReason ?? "Payment invalid."), { status: 402 });
   if (!("payer" in verification) || !verification.payer) return NextResponse.json({ error: "Facilitator did not return a payer identity." }, { status: 502 });
@@ -55,12 +58,17 @@ export async function POST(req: NextRequest) {
   const expiresAt = new Date(now.getTime() + config.tradingLeaseHours * 60 * 60_000);
   const resources = tradingResources(id);
   const stack: TradingStackRecord = { id, payer: verification.payer, requestKey, profileId: PAPER_TRADING_PROFILE.id, status: "payment_pending", mode: "paper", config: paperConfig, resources, maxGcpCostUsd: PAPER_TRADING_PROFILE.maxGcpCostUsd, settledAmountUsd: 0, createdAt: now.toISOString(), expiresAt: expiresAt.toISOString(), updatedAt: now.toISOString() };
-  try {
-    await reserveTradingStack(stack, config.maxOutstandingGcpExposureUsd);
-    await scheduleTradingCleanup(id, expiresAt);
-  } catch (error) {
-    await saveTradingStack({ ...stack, status: "failed", error: (error as Error).message, updatedAt: new Date().toISOString() });
+  let reservation;
+  try { reservation = await reserveTradingStack(stack, config.maxOutstandingGcpExposureUsd); }
+  catch (error) {
     return NextResponse.json({ error: `Unable to reserve safe paper-trading capacity: ${(error as Error).message}` }, { status: 409 });
+  }
+  if (!reservation.created) return existingReservationResponse(reservation.stack, req.headers.get(BETA_SESSION_HEADER) ?? "");
+  try { await scheduleTradingCleanup(id, expiresAt); }
+  catch (error) {
+    const failed = { ...stack, status: "failed" as const, error: (error as Error).message, updatedAt: new Date().toISOString() };
+    await saveTradingStack(failed);
+    return NextResponse.json({ error: `Unable to schedule safe paper-trading cleanup: ${failed.error}` }, { status: 502 });
   }
   await recordTransaction({ id: `trading-${id}`, payer: stack.payer, service: "trading", operation: "deploy_paper", status: "verified", requestedAmountUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, resourceId: id, createdAt: now.toISOString() });
   try {

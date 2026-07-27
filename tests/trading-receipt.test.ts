@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearPendingTradingRequest, pendingTradingRequestId } from "../src/trading-receipt.js";
+import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, type TradingReceipt } from "../src/trading-receipt.js";
 
 test("paid deployment retries reuse their pending request ID", () => {
   const directory = mkdtempSync(join(tmpdir(), "gcp-x402-pending-"));
@@ -26,4 +26,16 @@ test("confirmed outcomes clear pending request IDs", () => {
   clearPendingTradingRequest(first, file);
   const next = pendingTradingRequestId({}, () => "request-2", file);
   assert.equal(next, "request-2");
+});
+
+test("a recent matching success blocks accidental handoff redeployment", () => {
+  const directory = mkdtempSync(join(tmpdir(), "gcp-x402-receipt-"));
+  const file = join(directory, "receipts.json");
+  const receipt: TradingReceipt = {
+    stackId: "stack-1", mode: "paper", region: "asia-northeast1",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(), maxPriceUsd: 5,
+    capability: "private", paperOnly: true, configJson: "{}", savedAt: new Date().toISOString(),
+  };
+  writeFileSync(file, JSON.stringify([receipt]));
+  assert.equal(recentTradingReceipt({}, 30 * 60_000, file)?.stackId, "stack-1");
 });

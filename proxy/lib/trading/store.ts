@@ -1,8 +1,10 @@
 import { Firestore } from "@google-cloud/firestore";
+import { createHash } from "node:crypto";
 import { type TradingEvent, type TradingStackRecord } from "./types";
 
 const memoryStacks = new Map<string, TradingStackRecord>();
 const memoryEvents = new Map<string, TradingEvent[]>();
+const memoryRequestKeys = new Map<string, string>();
 let firestore: Firestore | null | undefined;
 
 function db(): Firestore | null {
@@ -17,17 +19,34 @@ export async function saveTradingStack(stack: TradingStackRecord): Promise<void>
   await db()?.collection("trading_stacks").doc(stack.id).set(stack);
 }
 
-export async function reserveTradingStack(stack: TradingStackRecord, maxExposureUsd: number): Promise<void> {
+export interface TradingReservation { created: boolean; stack: TradingStackRecord }
+
+export async function reserveTradingStack(stack: TradingStackRecord, maxExposureUsd: number): Promise<TradingReservation> {
+  if (!stack.requestKey) throw new Error("A deployment request key is required.");
   const firestoreDb = db();
   if (!firestoreDb) {
+    const existingId = memoryRequestKeys.get(stack.requestKey);
+    const existing = existingId ? memoryStacks.get(existingId) : undefined;
+    if (existing) return { created: false, stack: existing };
     const outstanding = [...memoryStacks.values()]
       .filter((item) => !["shutdown", "expired", "failed"].includes(item.status))
       .reduce((total, item) => total + item.maxGcpCostUsd, 0);
     if (outstanding + stack.maxGcpCostUsd > maxExposureUsd) throw new Error("Testing spend exposure is exhausted; stop or shut down an existing trading stack first.");
     memoryStacks.set(stack.id, stack);
-    return;
+    memoryRequestKeys.set(stack.requestKey, stack.id);
+    return { created: true, stack };
   }
-  await firestoreDb.runTransaction(async (tx) => {
+  const requestKeyId = createHash("sha256").update(stack.requestKey).digest("hex");
+  const reservation = await firestoreDb.runTransaction(async (tx): Promise<TradingReservation> => {
+    const requestRef = firestoreDb.collection("trading_request_keys").doc(requestKeyId);
+    const requestSnap = await tx.get(requestRef);
+    if (requestSnap.exists) {
+      const existingId = requestSnap.data()?.stackId as string | undefined;
+      if (!existingId) throw new Error("Deployment request reservation is corrupt.");
+      const existingSnap = await tx.get(firestoreDb.collection("trading_stacks").doc(existingId));
+      if (!existingSnap.exists) throw new Error("Deployment request reservation has no stack record.");
+      return { created: false, stack: existingSnap.data() as TradingStackRecord };
+    }
     const [regularJobs, tradingStacks] = await Promise.all([
       tx.get(firestoreDb.collection("provisioning_jobs")),
       tx.get(firestoreDb.collection("trading_stacks")),
@@ -38,8 +57,12 @@ export async function reserveTradingStack(stack: TradingStackRecord, maxExposure
       .filter((item) => !["shutdown", "expired", "failed"].includes(item.status)).reduce((total, item) => total + item.maxGcpCostUsd, 0);
     if (regularExposure + tradingExposure + stack.maxGcpCostUsd > maxExposureUsd) throw new Error("Testing spend exposure is exhausted; stop or shut down an existing resource first.");
     tx.create(firestoreDb.collection("trading_stacks").doc(stack.id), stack);
+    tx.create(requestRef, { stackId: stack.id, requestKey: stack.requestKey, createdAt: stack.createdAt });
+    return { created: true, stack };
   });
-  memoryStacks.set(stack.id, stack);
+  memoryStacks.set(reservation.stack.id, reservation.stack);
+  memoryRequestKeys.set(stack.requestKey, reservation.stack.id);
+  return reservation;
 }
 
 export async function getTradingStack(id: string): Promise<TradingStackRecord | null> {

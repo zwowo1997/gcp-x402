@@ -25,7 +25,8 @@ Commands:
   provision-status <id> <capability> Show a provisioning job.
   provision-delete <id> <capability> Delete a provisioned resource.
   trading-catalog         List the Tokyo paper-trading stack profile.
-  trading-deploy          Deploy a paid 24-hour BTC paper-trading stack.
+  trading-deploy          Deploy once, or recover a recent matching receipt without paying again.
+  trading-deploy --new    Intentionally deploy an additional paid stack after fresh approval.
   trading-status <id> <capability> Inspect a paper-trading stack.
   trading-control <id> <capability> <start|stop|resume|shutdown> Control a paper-trading stack.
   trading-receipt <id>   Recover a locally saved paid trading receipt/capability.
@@ -105,7 +106,8 @@ export async function runCli(argv: string[]): Promise<number> {
       console.log(JSON.stringify(await tradingCatalog(), null, 2));
       return 0;
     case "trading-deploy":
-      console.log(JSON.stringify(await deployPaperTrading(), null, 2));
+      if (argv[1] && argv[1] !== "--new") return usageError("trading-deploy [--new]");
+      console.log(JSON.stringify(await deployPaperTrading({}, { allowAdditionalStack: argv[1] === "--new" }), null, 2));
       return 0;
     case "trading-status":
       if (!argv[1] || !argv[2]) return usageError("trading-status <stack-id> <capability>");
