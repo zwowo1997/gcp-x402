@@ -101,7 +101,7 @@
     <div class="install" id="install">
       <div class="lab">Install — just tell your agent</div>
       <div class="cmd">
-        <code id="cmd">install the skill at <span class="em">https://gcp-x402-975410367881.us-central1.run.app/skill</span></code>
+        <code id="cmd">install the skill at <span class="em">https://gcp-x402-837831206506.us-central1.run.app/skill</span></code>
         <button class="copy" onclick="copyCmd()">Copy</button>
       </div>
       <div class="hint">That's the whole install. Your agent fetches the skill and learns how
@@ -119,12 +119,12 @@
     <ol class="steps">
       <li>
         <div class="st">Install the skill</div>
-        <p style="margin:6px 0 0">Tell your agent: <span class="say">install the skill at https://gcp-x402-975410367881.us-central1.run.app/skill</span></p>
+        <p style="margin:6px 0 0">Tell your agent: <span class="say">install the skill at https://gcp-x402-837831206506.us-central1.run.app/skill</span></p>
         <details><summary>Prefer to do it by hand?</summary><div class="body">
           <p style="margin:0 0 8px">Run this in the project you want to enable (installs it just there):</p>
-<pre>mkdir -p .claude/skills/bigquery-public-data &amp;&amp; \
-curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
-  -o .claude/skills/bigquery-public-data/SKILL.md</pre>
+<pre>mkdir -p .claude/skills/gcp-x402 &amp;&amp; \
+curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+  -o .claude/skills/gcp-x402/SKILL.md</pre>
         </div></details>
       </li>
       <li id="fund">
@@ -145,6 +145,7 @@ curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
         <span class="say">What were the 10 most popular baby names in California, all-time? Use BigQuery.</span>
         <span class="say">From the public Hacker News data, top 5 stories by score in 2015?</span>
         <span class="say">Estimate what that query would cost before running it.</span>
+        <span class="say">Help me deploy a storage bucket without a GCP account.</span>
       </li>
     </ol>
   </section>
@@ -169,7 +170,7 @@ curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
       whoever manages it to allow these:</p>
     <table>
       <tr><th>Host</th><th>Needed for</th></tr>
-      <tr><td><code>gcp-x402-975410367881.us-central1.run.app</code></td><td>installing the skill + running queries</td></tr>
+      <tr><td><code>gcp-x402-837831206506.us-central1.run.app</code></td><td>installing the skill + running requests</td></tr>
       <tr><td><code>github.com</code>, <code>codeload.github.com</code>, <code>registry.npmjs.org</code></td><td>installing the tool itself</td></tr>
       <tr><td><code>sepolia.base.org</code> (or <code>mainnet.base.org</code>)</td><td>checking your wallet balance</td></tr>
     </table>
@@ -188,8 +189,7 @@ curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
     <p class="lead">If your client supports MCP, register the tool directly for structured tools
       (<code>bigquery_query</code>, <code>bigquery_estimate</code>, <code>wallet_info</code>, <code>list_public_datasets</code>):</p>
 <pre>claude mcp add gcp-x402 \
-  --env PROXY_URL=https://gcp-x402-975410367881.us-central1.run.app \
-  -- npx -y github:nalin/gcp-x402</pre>
+  -- npx -y github:zwowo1997/gcp-x402</pre>
     <p>Same wallet, same per-query pricing.</p>
   </section>
 
@@ -197,7 +197,7 @@ curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
     gcp-x402 — query BigQuery public datasets, paid per query in USDC over
     <a href="https://x402.org">x402</a>.
     <a href="/architecture">Architecture &amp; design</a> ·
-    <a href="https://github.com/nalin/gcp-x402">GitHub</a> · Not affiliated with Google.
+    <a href="https://github.com/zwowo1997/gcp-x402">GitHub</a> · Not affiliated with Google.
   </footer>
 </div>
 

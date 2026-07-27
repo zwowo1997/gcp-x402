@@ -10,7 +10,7 @@ import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionR
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
 
 Usage:
-  npx -y github:nalin/gcp-x402 <command>
+  npx -y github:zwowo1997/gcp-x402 <command>
 
 Commands:
   wallet                 Show this project's wallet address, USDC balance, and how to fund it.

@@ -1,8 +1,8 @@
 # gcp-x402 — User Guide
 
-Query Google BigQuery's public datasets from your AI agent — **no Google Cloud
-account, no API keys**. You pay a few thousandths of a dollar per query in USDC, and the
-agent handles the payment for you.
+Query Google BigQuery's public datasets or deploy a small temporary storage bucket from
+your AI agent — **no Google Cloud account, no API keys**. You pay in test USDC and the
+agent handles the GCP work for you.
 
 This guide is for people *using* an agent (Claude Code, etc.), not deploying the service.
 
@@ -12,7 +12,7 @@ This guide is for people *using* an agent (Claude Code, etc.), not deploying the
 
 Just tell your agent, in plain English:
 
-> **install the skill at https://gcp-x402-975410367881.us-central1.run.app/skill**
+> **install the skill at https://gcp-x402-837831206506.us-central1.run.app/skill**
 
 That's it. The agent fetches the skill from that URL and drops it into its skills folder.
 From then on, whenever you ask a question that public data can answer, it knows how to use
@@ -24,9 +24,9 @@ the tool.
 Run this from the project where you want the skill (installs it just for that project):
 
 ```bash
-mkdir -p .claude/skills/bigquery-public-data && \
-curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
-  -o .claude/skills/bigquery-public-data/SKILL.md
+mkdir -p .claude/skills/gcp-x402 && \
+curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+  -o .claude/skills/gcp-x402/SKILL.md
 ```
 </details>
 
@@ -67,6 +67,14 @@ You can also ask it to **estimate the cost first** for anything that might be la
 
 > *“Estimate what that query would cost before running it.”*
 
+To deploy a bucket, simply ask:
+
+> *“Help me deploy a storage bucket without a GCP account.”*
+
+The agent checks its generated wallet, explains the `$0.50` Base Sepolia USDC
+test charge and one-hour expiry, then creates the private temporary bucket after
+your approval. You never need GCP credentials.
+
 ---
 
 ## What it costs
@@ -90,7 +98,7 @@ and you're only ever charged for queries that succeed.
 Your agent is running in a locked-down environment that only allows certain outbound
 hosts. Ask whoever manages it to allow these:
 
-- `gcp-x402-975410367881.us-central1.run.app` — installing the skill and running queries
+- `gcp-x402-837831206506.us-central1.run.app` — installing the skill and running requests
 - `github.com`, `codeload.github.com`, `registry.npmjs.org` — installing the tool itself
 - `sepolia.base.org` (or `mainnet.base.org`) — checking your wallet balance
 
@@ -112,8 +120,7 @@ instead of using the skill:
 
 ```bash
 claude mcp add gcp-x402 \
-  --env PROXY_URL=https://gcp-x402-975410367881.us-central1.run.app \
-  -- npx -y github:nalin/gcp-x402
+  -- npx -y github:zwowo1997/gcp-x402
 ```
 
 This gives the agent structured tools (`bigquery_query`, `bigquery_estimate`,

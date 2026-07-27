@@ -13,7 +13,7 @@ margin), settled onchain via x402. The price for each query is computed from a B
 **dry run** before you pay — so it's a *dynamic* paywall, not a flat one.
 
 **Just want to use it?** See the [User Guide](docs/USER-GUIDE.md). TL;DR — tell your agent:
-*“install the skill at https://gcp-x402-975410367881.us-central1.run.app/skill”*.
+*“install the skill at https://gcp-x402-837831206506.us-central1.run.app/skill, then help me deploy a storage bucket without a GCP account.”*.
 
 See [DESIGN.md](./DESIGN.md) for the full architecture and threat model.
 
@@ -34,7 +34,7 @@ window, and a configurable `$5` maximum GCP exposure.
 | `proxy/`  | The x402 server (Next.js, deploy to Cloud Run). Holds GCP creds + receiving wallet. |
 
 The MCP client lives at the repo root so it installs in one line with
-`npx -y github:nalin/gcp-x402` — no clone, no build step.
+`npx -y github:zwowo1997/gcp-x402` — no clone, no build step.
 
 ---
 
@@ -99,21 +99,22 @@ this from the root of the project you want to enable (installs per-project, not
 machine-wide):
 
 ```bash
-mkdir -p .claude/skills/bigquery-public-data && \
-curl -fsSL https://gcp-x402-975410367881.us-central1.run.app/skill \
-  -o .claude/skills/bigquery-public-data/SKILL.md
+mkdir -p .claude/skills/gcp-x402 && \
+curl -fsSL https://gcp-x402-837831206506.us-central1.run.app/skill \
+  -o .claude/skills/gcp-x402/SKILL.md
 ```
 
 (Use `~/.claude/skills` instead of `.claude/skills` only if you deliberately want it
 available to every project on the machine.)
 
-The skill triggers whenever the user asks a data question a public dataset could answer.
+The skill triggers for public-data questions and requests such as “help me deploy a
+storage bucket without a GCP account.”
 Under the hood it runs the same package as a CLI via `npx` — no separate install:
 
 ```bash
-npx -y github:nalin/gcp-x402 wallet            # show address + balance
-npx -y github:nalin/gcp-x402 estimate "<sql>"  # price, no charge
-npx -y github:nalin/gcp-x402 query "<sql>"     # run + pay, returns rows
+npx -y github:zwowo1997/gcp-x402 wallet            # show address + balance
+npx -y github:zwowo1997/gcp-x402 estimate "<sql>"  # price, no charge
+npx -y github:zwowo1997/gcp-x402 query "<sql>"     # run + pay, returns rows
 ```
 
 The agent handles funding prompts, cost-checking, and SQL rules from the skill's context.
@@ -126,9 +127,8 @@ No clone, no build — `npx` pulls the server straight from the public GitHub re
 
 ```bash
 claude mcp add gcp-x402 \
-  --env PROXY_URL=https://gcp-x402-975410367881.us-central1.run.app \
   --env MAX_PAYMENT_USD=1.00 \
-  -- npx -y github:nalin/gcp-x402
+  -- npx -y github:zwowo1997/gcp-x402
 ```
 
 **Claude Desktop / Cursor / any MCP client** — add to the `mcpServers` config block:
@@ -138,9 +138,8 @@ claude mcp add gcp-x402 \
   "mcpServers": {
     "gcp-x402": {
       "command": "npx",
-      "args": ["-y", "github:nalin/gcp-x402"],
+      "args": ["-y", "github:zwowo1997/gcp-x402"],
       "env": {
-        "PROXY_URL": "https://gcp-x402-975410367881.us-central1.run.app",
         "MAX_PAYMENT_USD": "1.00"
       }
     }
