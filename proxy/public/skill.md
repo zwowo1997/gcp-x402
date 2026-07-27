@@ -1,11 +1,11 @@
 ---
 name: gcp-x402
 description: >-
-  Query allowlisted Google BigQuery public datasets or provision a tightly scoped
-  demo GCP VM or Cloud Storage bucket through gcp-x402. Use when a user asks to
-  analyze public data with BigQuery, inspect the available GCP provisioning
-  catalog, or create, check, or delete a paid temporary GCP resource. Payments
-  use USDC over x402 on Base Sepolia in the current test deployment.
+  Query allowlisted Google BigQuery public datasets or deploy a tightly scoped
+  temporary GCP VM or Cloud Storage bucket through gcp-x402, without the user
+  having a GCP account. Use when a user asks to analyze public data, says things
+  like "deploy a storage bucket without GCP", or asks to inspect, create, check,
+  or delete a paid demo GCP resource. Payments use USDC over x402 on Base Sepolia.
 ---
 
 # gcp-x402: paid BigQuery and demo GCP resources
@@ -16,11 +16,10 @@ using the operator's GCP account. Never treat it as a general-purpose GCP API.
 
 ## Commands
 
-Run the CLI with this environment variable so it reaches the current deployment:
+Run the CLI directly; its default is the hosted service:
 
 ```bash
-PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
-  npx -y github:zwowo1997/gcp-x402 <command>
+npx -y github:zwowo1997/gcp-x402 <command>
 ```
 
 | Command | Purpose |
@@ -37,6 +36,21 @@ PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
 The first CLI use generates a wallet in `./.gcp-x402/wallet.json`. Run `wallet`
 before any paid operation. If it has insufficient funds, show the address and ask
 the user to fund it with Base Sepolia USDC; do not retry payment repeatedly.
+
+## Plain-English storage request
+
+For a request such as **"Help me deploy a storage bucket without a GCP account"**:
+
+1. Run `wallet` and `catalog` yourself. Do not ask the user for GCP credentials.
+2. Explain that `storage.small` is a private, temporary bucket in `us-central1`,
+   costs at most `$0.50` USDC on Base Sepolia, and is deleted within 60 minutes.
+3. If the generated wallet lacks funds, show its address and the Base Sepolia USDC
+   funding instruction. Resume after the user confirms it is funded.
+4. Ask for confirmation to spend up to `$0.50`; if the user's request explicitly
+   includes that approval, proceed.
+5. Run `MAX_PAYMENT_USD=0.50 npx -y github:zwowo1997/gcp-x402 provision storage.small`.
+6. Keep the returned `jobId` and `capability` private. Give the user the expiry and
+   offer to delete the bucket early.
 
 ## BigQuery workflow
 
@@ -55,8 +69,7 @@ partitioned tables to reduce cost.
 Example:
 
 ```bash
-PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
-  npx -y github:zwowo1997/gcp-x402 estimate \
+npx -y github:zwowo1997/gcp-x402 estimate \
   'SELECT name, SUM(number) AS total
    FROM `bigquery-public-data.usa_names.usa_1910_2013`
    WHERE state = "CA"
@@ -93,11 +106,9 @@ Before provisioning:
 Example:
 
 ```bash
-PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
-  npx -y github:zwowo1997/gcp-x402 catalog
+npx -y github:zwowo1997/gcp-x402 catalog
 
-PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
-  npx -y github:zwowo1997/gcp-x402 provision storage.small
+npx -y github:zwowo1997/gcp-x402 provision storage.small
 ```
 
 Do not attempt arbitrary VM shapes, regions, public IPs, bucket policies, object
@@ -113,6 +124,5 @@ without explicit approval:
 
 ```bash
 MAX_PAYMENT_USD=0.50 \
-PROXY_URL=https://gcp-x402-837831206506.us-central1.run.app \
   npx -y github:zwowo1997/gcp-x402 provision storage.small
 ```

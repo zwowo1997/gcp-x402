@@ -15,7 +15,7 @@ function resolveWalletFile(): string {
 
 export const config = {
   /** Base URL of the gcp-x402 proxy. Defaults to the hosted deployment. */
-  proxyUrl: (process.env.PROXY_URL ?? "https://gcp-x402-975410367881.us-central1.run.app").replace(/\/$/, ""),
+  proxyUrl: (process.env.PROXY_URL ?? "https://gcp-x402-837831206506.us-central1.run.app").replace(/\/$/, ""),
 
   /**
    * Optional explicit key (power users / CI). When unset, the server generates
