@@ -24,7 +24,7 @@ agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──40
 The demo also exposes an allowlisted provisioning catalog (`vm.small` and
 `storage.small`) through `GET /api/catalog` and the `provision_*` MCP tools.
 Provisioning is limited to Base Sepolia, `us-central1`, a one-hour rental
-window, and a configurable `$5` maximum GCP exposure.
+window, a `$5` maximum per operation, and `$20` maximum total outstanding exposure.
 
 It also includes an opt-in `trading.paper.ema` profile for a **paper-only** Hyperliquid
 BTC perpetual strategy stack. It creates Tokyo (`asia-northeast1`) Pub/Sub and Cloud
