@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "site": "hyperliquid-test",
+    "public": "public",
+    "ignore": ["firebase.json", "firebase.*.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": { "serviceId": "gcp-x402-tokyo-internal", "region": "asia-northeast1" }
+      },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}

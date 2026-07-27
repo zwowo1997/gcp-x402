@@ -40,11 +40,22 @@ npx -y github:zwowo1997/gcp-x402 <command>
 | `trading-status <stack-id> <capability>` | Inspect a paper stack and lifecycle events. |
 | `trading-control <stack-id> <capability> <stop|resume|shutdown>` | Control a paper stack. |
 
-Before any service command, ask the user to run `npx -y github:zwowo1997/gcp-x402 unlock`
-in their interactive terminal and type the operator-provided password. Never ask them
-to place the password in a command argument, environment variable, source file, chat,
-or agent log. The plaintext password is not persisted; only an eight-hour signed session
-is stored in `./.gcp-x402/beta-session.json` with restricted permissions.
+Before any service command, determine the agent's absolute working directory. Ask the
+user to unlock from that exact directory, rendering the real path and quoting it safely:
+
+```bash
+cd '<absolute agent working directory>'
+npx -y github:zwowo1997/gcp-x402 unlock
+```
+
+Never give a bare `unlock` command without the `cd` line. The wallet and signed beta
+session are project-local, so unlocking from another terminal directory creates state
+the agent cannot use. After the user reports success, verify that
+`<absolute agent working directory>/.gcp-x402/beta-session.json` exists before calling
+the catalog. If it is absent, repeat the same directory-specific command. Never ask the
+user to place the password in a command argument, environment variable, source file,
+chat, or agent log. The plaintext password is not persisted; only an eight-hour signed
+session is stored with restricted permissions.
 
 The first CLI use generates a wallet in `./.gcp-x402/wallet.json`. Run `wallet`
 before any paid operation. If it has insufficient funds, show the address and ask
@@ -54,7 +65,7 @@ the user to fund it with Base Sepolia USDC; do not retry payment repeatedly.
 
 For a request such as **"Help me deploy a storage bucket without a GCP account"**:
 
-1. Confirm the user has completed `unlock`, then run `wallet` and `catalog` yourself. Do not ask the user for GCP credentials.
+1. Confirm the directory-specific `unlock` completed and its session file exists, then run `wallet` and `catalog` yourself. Do not ask the user for GCP credentials.
 2. Explain that `storage.small` is a private, temporary bucket in `us-central1`,
    costs at most `$0.50` USDC on Base Sepolia, and is deleted within 60 minutes.
 3. If the generated wallet lacks funds, show its address and the Base Sepolia USDC
@@ -136,19 +147,20 @@ hedging strategy on GCP without a cloud account and pay stablecoin."** Start wit
 `trading-catalog`; it is a distinct profile, not a general-purpose exchange deployment.
 
 The current release creates a 24-hour stack in Tokyo (`asia-northeast1`): public
-Hyperliquid BTC market feed → Pub/Sub → a dedicated Spanner database → private Cloud
-Run writer and EMA strategy services → a Firebase-hosted control dashboard. It is
+Hyperliquid BTC market feed → a dedicated Pub/Sub path → renter-isolated rows in an
+operator-owned shared Spanner database → private Cloud Run writer and EMA strategy
+services → a Firebase-hosted control dashboard. It is
 strictly paper-only: do not promise testnet/mainnet orders, request a Hyperliquid
 account, request a private key, or suggest that the GCP region changes any exchange
 eligibility restriction.
 
 Before deploying:
 
-1. Confirm the user has completed `unlock`, then run `wallet` and `trading-catalog`.
+1. Confirm the directory-specific `unlock` completed and its session file exists, then run `wallet` and `trading-catalog`.
 2. State the maximum one-time payment (`$5.00` USDC on Base Sepolia), 24-hour expiry,
    Tokyo region, and simulated-only execution.
 3. Ask for explicit approval to spend up to `$5.00`, unless the user already gave it.
-4. Set the client cap and deploy exactly once:
+4. Set the client cap and start one deployment:
 
    ```bash
    MAX_PAYMENT_USD=5.00 npx -y github:zwowo1997/gcp-x402 trading-deploy
@@ -156,9 +168,14 @@ Before deploying:
 
 5. Keep the returned `stackId` and `capability` private. Give the returned dashboard
    URL to the user; it contains the private capability in its fragment.
+   The client also saves a local receipt under `.gcp-x402/trading-receipts.json`; if
+   the terminal loses the response, recover it with `trading-receipt <stackId>`.
+   If the request appears to hang, do not immediately pay again: inspect the local
+   receipts or deployment status first. The request carries a retry key so the proxy
+   can return the existing successful deployment.
 6. Use `trading-status` for status. Use `trading-control ... stop` to pause Pub/Sub
    consumers, `resume` to restart them before expiry, or `shutdown` to delete the
-   dedicated topic, database, and Cloud Run services early.
+   dedicated topic and Cloud Run services plus only that renter's shared-database rows early.
 
 Do not run a paper deployment merely as a connectivity check. It creates billable GCP
 resources and consumes a testnet payment. The operator caps outstanding testing exposure

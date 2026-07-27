@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc",
     "prepare": "tsc",
+    "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"

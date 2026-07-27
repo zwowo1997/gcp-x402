@@ -20,12 +20,14 @@ export interface TradingResources {
   topic: string;
   persistSubscription: string;
   strategySubscription: string;
+  tenantId: string;
   database: string;
 }
 
 export interface TradingStackRecord {
   id: string;
   payer: string;
+  requestKey?: string;
   profileId: "trading.paper.ema";
   status: TradingStackStatus;
   mode: "paper";

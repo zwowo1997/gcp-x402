@@ -45,12 +45,14 @@ export const config = {
   cleanupToken: reqWhen(Boolean(process.env.CLOUD_TASKS_QUEUE), "CLEANUP_TOKEN"),
   // --- Hyperliquid paper trading -------------------------------------------
   tradingRegion: process.env.TRADING_REGION ?? "asia-northeast1",
-  tradingSpannerInstance: process.env.TRADING_SPANNER_INSTANCE ?? "gcp-x402-trading",
+  tradingSpannerInstance: process.env.TRADING_SPANNER_INSTANCE ?? "hyperliquid-test",
+  tradingSpannerDatabase: process.env.TRADING_SPANNER_DATABASE ?? "hyperliquid-demo",
   tradingRuntimeServiceAccount: process.env.TRADING_RUNTIME_SERVICE_ACCOUNT,
   tradingPubsubPushServiceAccount: process.env.TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT,
   tradingImage: process.env.TRADING_IMAGE,
   tradingDashboardUrl: process.env.TRADING_DASHBOARD_URL?.replace(/\/$/, ""),
   tradingLeaseHours: num("TRADING_LEASE_HOURS", 24),
+  tradingPaymentTimeoutSeconds: num("TRADING_PAYMENT_TIMEOUT_SECONDS", 600),
   // --- BigQuery -------------------------------------------------------------
   /** Billing project that runs the jobs (NOT the public-data project). */
   gcpProjectId: req("GCP_PROJECT_ID"),

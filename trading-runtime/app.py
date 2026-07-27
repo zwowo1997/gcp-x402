@@ -26,7 +26,9 @@ PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 TOPIC = os.environ["PUBSUB_TOPIC"]
 SPANNER_INSTANCE = os.environ["SPANNER_INSTANCE"]
 SPANNER_DATABASE = os.environ["SPANNER_DATABASE"]
+TENANT_ID = os.environ["TENANT_ID"]
 WS_URL = os.environ.get("HYPERLIQUID_WS_URL", "wss://api.hyperliquid.xyz/ws")
+MARKET_PUBLISH_INTERVAL_SECONDS = float(os.environ.get("MARKET_PUBLISH_INTERVAL_SECONDS", "5"))
 FAST_EMA = int(os.environ.get("FAST_EMA", "9"))
 SLOW_EMA = int(os.environ.get("SLOW_EMA", "21"))
 EVALUATION_INTERVAL_SECONDS = int(os.environ.get("EVALUATION_INTERVAL_SECONDS", "60"))
@@ -45,6 +47,7 @@ database = spanner_client.instance(SPANNER_INSTANCE).database(SPANNER_DATABASE)
 prices: deque[float] = deque(maxlen=64)
 state = {"last_signal": "flat", "position_notional": 0.0, "equity": VIRTUAL_BALANCE_USD, "daily_pnl": 0.0, "last_price": None, "halted": False}
 last_evaluation = 0.0
+last_published = {"mid": 0.0, "trade": 0.0}
 
 
 def now() -> datetime:
@@ -71,6 +74,15 @@ def publish(payload: dict) -> None:
     publisher.publish(publisher.topic_path(PROJECT_ID, TOPIC), json.dumps(payload).encode(), event_id=payload["event_id"], event_type=payload.get("type", "market")).result(timeout=10)
 
 
+def publish_sampled(payload: dict) -> None:
+    event_type = payload["type"]
+    current = time.monotonic()
+    if current - last_published[event_type] < MARKET_PUBLISH_INTERVAL_SECONDS:
+        return
+    last_published[event_type] = current
+    publish(payload)
+
+
 async def collect() -> None:
     while True:
         try:
@@ -82,11 +94,11 @@ async def collect() -> None:
                     channel = message.get("channel")
                     data = message.get("data", {})
                     if channel == "allMids" and "BTC" in data.get("mids", {}):
-                        publish({"type": "mid", "symbol": "BTC", "mid": float(data["mids"]["BTC"]), "source": "hyperliquid"})
+                        publish_sampled({"type": "mid", "symbol": "BTC", "mid": float(data["mids"]["BTC"]), "source": "hyperliquid"})
                     elif channel == "trades":
                         for trade in data:
                             if trade.get("coin") == "BTC":
-                                publish({"type": "trade", "symbol": "BTC", "price": float(trade["px"]), "size": float(trade["sz"]), "side": trade.get("side"), "source": "hyperliquid"})
+                                publish_sampled({"type": "trade", "symbol": "BTC", "price": float(trade["px"]), "size": float(trade["sz"]), "side": trade.get("side"), "source": "hyperliquid"})
         except Exception as error:
             print(f"collector reconnecting after error: {error}", flush=True)
             await asyncio.sleep(2)
@@ -108,8 +120,8 @@ def persist_market_event(event: dict) -> None:
     with database.batch() as batch:
         batch.insert_or_update(
             table="MarketSnapshots",
-            columns=("event_id", "observed_at", "symbol", "mid", "raw_json", "commit_ts"),
-            values=[(event["event_id"], observed, event["symbol"], price, json.dumps(event), spanner.COMMIT_TIMESTAMP)],
+            columns=("TenantId", "event_id", "observed_at", "symbol", "mid", "raw_json", "commit_ts"),
+            values=[(TENANT_ID, event["event_id"], observed, event["symbol"], price, json.dumps(event), spanner.COMMIT_TIMESTAMP)],
         )
 
 
@@ -117,10 +129,11 @@ def simulate_strategy(event: dict) -> None:
     global last_evaluation
     if event.get("type") != "mid" or event.get("symbol") != "BTC":
         return
+    price = float(event["mid"])
+    prices.append(price)
     if time.monotonic() - last_evaluation < EVALUATION_INTERVAL_SECONDS:
         return
     last_evaluation = time.monotonic()
-    price = float(event["mid"])
     previous_price = state["last_price"]
     if previous_price and state["position_notional"]:
         quantity_held = abs(state["position_notional"]) / previous_price
@@ -133,13 +146,12 @@ def simulate_strategy(event: dict) -> None:
         with database.batch() as batch:
             batch.insert_or_update(
                 table="StrategyState",
-                columns=("state_key", "updated_at", "payload"),
-                values=[("current", now(), json.dumps(state | {"halt_reason": "max_daily_loss"}))],
+                columns=("TenantId", "state_key", "updated_at", "payload"),
+                values=[(TENANT_ID, "current", now(), json.dumps(state | {"halt_reason": "max_daily_loss"}))],
             )
         return
     if state["halted"]:
         return
-    prices.append(price)
     if len(prices) < SLOW_EMA:
         return
     history = list(prices)
@@ -157,13 +169,13 @@ def simulate_strategy(event: dict) -> None:
     with database.batch() as batch:
         batch.insert_or_update(
             table="SimulatedOrders",
-            columns=("order_id", "created_at", "side", "quantity", "price", "status", "payload"),
-            values=[(order_id, now(), side, quantity, price, "filled", json.dumps({"paper": True, "fast_ema": fast, "slow_ema": slow, "slippage_bps": SLIPPAGE_BPS, "event_id": event["event_id"]}))],
+            columns=("TenantId", "order_id", "created_at", "side", "quantity", "price", "status", "payload"),
+            values=[(TENANT_ID, order_id, now(), side, quantity, price, "filled", json.dumps({"paper": True, "fast_ema": fast, "slow_ema": slow, "slippage_bps": SLIPPAGE_BPS, "event_id": event["event_id"]}))],
         )
         batch.insert_or_update(
             table="StrategyState",
-            columns=("state_key", "updated_at", "payload"),
-            values=[("current", now(), json.dumps(state | {"fast_ema": fast, "slow_ema": slow, "last_price": price}))],
+            columns=("TenantId", "state_key", "updated_at", "payload"),
+            values=[(TENANT_ID, "current", now(), json.dumps(state | {"fast_ema": fast, "slow_ema": slow, "last_price": price}))],
         )
 
 
