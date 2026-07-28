@@ -4,7 +4,7 @@ export const PAPER_TRADING_PROFILE = {
   id: "trading.paper.ema" as const,
   description: "Dedicated Tokyo paper-trading stack using real BTC perpetual market data and simulated EMA hedge execution. No Hyperliquid account or trading key is used.",
   region: "asia-northeast1" as const,
-  durationHours: 24,
+  durationHours: 1,
   maxGcpCostUsd: 5,
   priceCeilingUsd: 5,
   mode: "paper" as const,

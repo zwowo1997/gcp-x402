@@ -13,9 +13,18 @@ test("cost visibility lists every GCP product used by the stack", async () => {
   process.env.PAY_TO_ADDRESS ||= "0x0000000000000000000000000000000000000000";
   process.env.QUOTE_SECRET ||= "test-secret";
   const { tradingCostBreakdown, tradingCostSummary } = await import("../proxy/lib/trading/costs.js");
-  const services = new Set(tradingCostBreakdown(resources).map((item) => item.service));
+  const breakdown = tradingCostBreakdown(resources);
+  const services = new Set(breakdown.map((item) => item.service));
   assert.deepEqual([...services], ["Cloud Run", "Pub/Sub", "Spanner", "Firebase Hosting", "Cloud Tasks"]);
+  assert.ok(breakdown.every((item) => item.estimatedLeaseUsd >= 0));
   const summary = tradingCostSummary(resources);
   assert.equal(summary.x402PaymentUsd, 5);
+  assert.equal(summary.estimatedGcpUsageUsd, 0.114083);
+  assert.match(summary.estimateBasis, /1-hour GCP allocation/);
   assert.ok(summary.estimatedGcpUsageUsd > 0 && summary.estimatedGcpUsageUsd < summary.x402PaymentUsd);
+});
+
+test("paper trading catalog advertises a one-hour lease", async () => {
+  const { PAPER_TRADING_PROFILE } = await import("../proxy/lib/trading/catalog.js");
+  assert.equal(PAPER_TRADING_PROFILE.durationHours, 1);
 });

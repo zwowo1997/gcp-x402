@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const resource = `${new URL(req.url).origin}/api/trading/deploy`;
   const amount = String(Math.ceil(PAPER_TRADING_PROFILE.priceCeilingUsd * 1e6));
   const quoteToken = signQuote({ qhash: sha256(JSON.stringify(body)), bytes: 0, priceBaseUnits: amount, exp: Math.floor(Date.now() / 1000) + config.tradingPaymentTimeoutSeconds });
-  const requirements = buildRequirements({ maxAmountRequired: amount, resource, description: "Deploy a 24-hour Tokyo Hyperliquid BTC paper-trading stack", quoteToken, maxTimeoutSeconds: config.tradingPaymentTimeoutSeconds });
+  const requirements = buildRequirements({ maxAmountRequired: amount, resource, description: `Deploy a ${config.tradingLeaseHours}-hour Tokyo Hyperliquid BTC paper-trading stack`, quoteToken, maxTimeoutSeconds: config.tradingPaymentTimeoutSeconds });
   const header = req.headers.get("x-payment");
   if (!header) return NextResponse.json(paymentRequiredBody(requirements), { status: 402 });
   let payment;

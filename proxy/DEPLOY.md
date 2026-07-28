@@ -122,7 +122,7 @@ in `asia-northeast1` (Tokyo); it does not make an account or activity eligible f
 exchange where it is restricted. Check Hyperliquid's current terms and local rules
 before ever adding a future execution adapter.
 
-The MCP/proxy remains the payment and lifecycle control plane. For each paid 24-hour
+The MCP/proxy remains the payment and lifecycle control plane. For each paid one-hour
 stack it creates a dedicated Pub/Sub topic and three private Tokyo Cloud Run services
 (collector, writer, strategy). All renters share the operator-owned
 `hyperliquid-demo` database in the `hyperliquid-test` Spanner instance in
@@ -194,7 +194,7 @@ gcloud run deploy gcp-x402-tokyo --source . --region asia-northeast1 --allow-una
   --max-instances 1 \
   --set-secrets QUOTE_SECRET=gcp-x402-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-resource-capability:latest,CLEANUP_TOKEN=gcp-x402-cleanup-token:latest,DASHBOARD_TOKEN=gcp-x402-dashboard-token:latest,BETA_ACCESS_PASSWORD=gcp-x402-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-beta-session-secret:latest \
   --timeout=15m \
-  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=hyperliquid-test|TRADING_SPANNER_DATABASE=hyperliquid-demo|TRADING_PAYMENT_TIMEOUT_SECONDS=600|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v2-shared-spanner|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=24|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=20|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
+  --set-env-vars '^|^X402_NETWORK=base-sepolia|TEST_MODE=true|PAY_TO_ADDRESS=YOUR_BASE_SEPOLIA_ADDRESS|GCP_PROJECT_ID=YOUR_PROJECT|CLOUD_TASKS_QUEUE=gcp-x402-cleanup|CLOUD_TASKS_LOCATION=asia-northeast1|TRADING_REGION=asia-northeast1|TRADING_SPANNER_INSTANCE=hyperliquid-test|TRADING_SPANNER_DATABASE=hyperliquid-demo|TRADING_PAYMENT_TIMEOUT_SECONDS=600|TRADING_RUNTIME_SERVICE_ACCOUNT=gcp-x402-trading-runtime@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT=gcp-x402-pubsub-push@YOUR_PROJECT.iam.gserviceaccount.com|TRADING_IMAGE=asia-northeast1-docker.pkg.dev/YOUR_PROJECT/gcp-x402/hyperliquid-paper:paper-v2-shared-spanner|TRADING_DASHBOARD_URL=https://YOUR_FIREBASE_PROJECT.web.app|TRADING_LEASE_HOURS=1|MAX_GCP_COST_PER_PROVISION_USD=5|MAX_OUTSTANDING_GCP_EXPOSURE_USD=20|PUBLIC_BASE_URL=https://YOUR_TOKYO_CLOUD_RUN_URL'
 ```
 
 Deploy the static dashboard after the Tokyo Cloud Run service exists. Firebase Hosting

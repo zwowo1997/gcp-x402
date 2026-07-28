@@ -32,7 +32,7 @@ Run services, with renter-isolated rows in an operator-owned shared Spanner data
 then opens a basic hosted control dashboard.
 The dashboard is an operating console rather than a landing page: it shows the live BTC
 mid-price series, paper signal and position, simulated order ledger, risk limits, lease
-status, exact provisioned resource names, and the fixed payment versus estimated 24-hour
+status, exact provisioned resource names, and the fixed payment versus estimated one-hour
 GCP allocation. It also exposes capability-gated stop, resume, and shutdown controls.
 The stack uses public market data and simulated orders only: it has no wallet key and
 cannot place testnet or mainnet trades. See [the Tokyo paper-trading runbook](proxy/DEPLOY.md#tokyo-paper-trading-stack).
@@ -195,7 +195,7 @@ To share one wallet across projects, set `WALLET_FILE` to an absolute path (e.g.
 | `provision_status`      | Inspect a provisioned resource.                                        |
 | `provision_delete`      | Delete a provisioned resource.                                         |
 | `trading_catalog`       | List the paper-only Hyperliquid infrastructure profile.                |
-| `trading_deploy_paper`  | Pay and deploy the 24-hour Tokyo paper-trading stack.                  |
+| `trading_deploy_paper`  | Pay and deploy the one-hour Tokyo paper-trading stack.                 |
 | `trading_status`        | Inspect a paper stack and its lifecycle events.                         |
 | `trading_control`       | Stop, resume, or permanently shut down a paper stack.                  |
 
