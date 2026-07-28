@@ -37,6 +37,6 @@ export async function expireTradingStack(stackId: string): Promise<boolean> {
   if (!stack || ["shutdown", "expired"].includes(stack.status)) return false;
   await deleteTradingStackResources(stack.resources);
   const next = { ...stack, status: "expired" as const, updatedAt: new Date().toISOString() };
-  await saveTradingStack(next); await event(next, "expired", "24-hour paper trading lease expired and its GCP runtime resources were deleted.");
+  await saveTradingStack(next); await event(next, "expired", "Paper trading lease expired and its GCP runtime resources were deleted.");
   return true;
 }

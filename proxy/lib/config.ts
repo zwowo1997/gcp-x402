@@ -51,7 +51,7 @@ export const config = {
   tradingPubsubPushServiceAccount: process.env.TRADING_PUBSUB_PUSH_SERVICE_ACCOUNT,
   tradingImage: process.env.TRADING_IMAGE,
   tradingDashboardUrl: process.env.TRADING_DASHBOARD_URL?.replace(/\/$/, ""),
-  tradingLeaseHours: num("TRADING_LEASE_HOURS", 24),
+  tradingLeaseHours: num("TRADING_LEASE_HOURS", 1),
   tradingPaymentTimeoutSeconds: num("TRADING_PAYMENT_TIMEOUT_SECONDS", 600),
   // --- BigQuery -------------------------------------------------------------
   /** Billing project that runs the jobs (NOT the public-data project). */

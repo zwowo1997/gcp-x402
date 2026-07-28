@@ -30,7 +30,7 @@ export interface TradingCostEstimate {
   resource: string;
   region: string;
   scope: "dedicated" | "shared";
-  estimated24hUsd: number;
+  estimatedLeaseUsd: number;
   note: string;
 }
 

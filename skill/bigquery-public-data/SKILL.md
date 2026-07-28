@@ -35,7 +35,7 @@ npx -y github:zwowo1997/gcp-x402 <command>
 | `provision <vm.small|storage.small>` | Pay for and create one temporary catalog resource. |
 | `provision-status <job-id> <capability>` | Inspect a provisioned resource. |
 | `provision-delete <job-id> <capability>` | Delete a provisioned resource early. |
-| `trading-catalog` | List the 24-hour Tokyo Hyperliquid paper-trading profile. |
+| `trading-catalog` | List the one-hour Tokyo Hyperliquid paper-trading profile. |
 | `trading-deploy` | Deploy once, or return a recent matching receipt without paying again. |
 | `trading-deploy --new` | Intentionally create an additional paid stack; requires a fresh explicit `$5` approval. |
 | `trading-status <stack-id> <capability>` | Inspect a paper stack and lifecycle events. |
@@ -149,7 +149,7 @@ Use this only for requests such as: **"Set up a full-stack Hyperliquid BTC perpe
 hedging strategy on GCP without a cloud account and pay stablecoin."** Start with
 `trading-catalog`; it is a distinct profile, not a general-purpose exchange deployment.
 
-The current release creates a 24-hour stack in Tokyo (`asia-northeast1`): public
+The current release creates a one-hour stack in Tokyo (`asia-northeast1`): public
 Hyperliquid BTC market feed → a dedicated Pub/Sub path → renter-isolated rows in an
 operator-owned shared Spanner database → private Cloud Run writer and EMA strategy
 services → a Firebase-hosted control dashboard. It is
@@ -160,7 +160,7 @@ eligibility restriction.
 Before deploying:
 
 1. Confirm the directory-specific `unlock` completed and its session file exists, then run `wallet` and `trading-catalog`.
-2. State the maximum one-time payment (`$5.00` USDC on Base Sepolia), 24-hour expiry,
+2. State the maximum one-time payment (`$5.00` USDC on Base Sepolia), one-hour expiry,
    Tokyo region, and simulated-only execution.
 3. Ask for explicit approval to spend up to `$5.00`, unless the user already gave it.
 4. Set the client cap and start one deployment. Never use `--new` for the user's first
@@ -184,9 +184,9 @@ Before deploying:
 6. Immediately after successful deployment, show a **GCP services and payment visibility**
    list in chat. Read the returned `costBreakdown`; for every item print its Google Cloud
    service, component, exact resource name, region, dedicated/shared scope, and
-   `estimated24hUsd`. Then print `costSummary.x402PaymentUsd`,
+   `estimatedLeaseUsd`. Then print `costSummary.x402PaymentUsd`,
    `costSummary.estimatedGcpUsageUsd`, and `costSummary.serviceAndRiskBufferUsd`.
-   Label these as illustrative 24-hour allocations, not separate micropayments, a GCP
+   Label these as illustrative one-hour allocations, not separate micropayments, a GCP
    invoice, or refundable amounts. Do not invent estimates when the response provides them.
 7. Use `trading-status` for status. Use `trading-control ... stop` to pause Pub/Sub
    consumers, `resume` to restart them before expiry, or `shutdown` to delete the
