@@ -10,3 +10,4 @@ dist/
 .vercel
 *.log
 .gcp-x402/
+dashboard/firebase.migration.generated.json

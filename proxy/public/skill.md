@@ -24,6 +24,10 @@ Run the CLI directly; its default is the hosted service:
 npx -y github:zwowo1997/gcp-x402 <command>
 ```
 
+For an independently deployed replica, set `PROXY_URL` to the replica's hosted
+service URL in the agent's MCP configuration and every direct CLI invocation.
+The GitHub client otherwise defaults to the original operator deployment.
+
 | Command | Purpose |
 | --- | --- |
 | `unlock` | Prompt for the private-beta password and save an eight-hour signed session locally. |
