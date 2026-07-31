@@ -1,5 +1,10 @@
 # Deploying the gcp-x402 proxy to Cloud Run
 
+For a complete fresh-project replica, prefer the repository-level
+[`MIGRATION.md`](../MIGRATION.md) workflow. It provisions the dependencies,
+generates fresh secrets, builds both images, deploys Firebase Hosting, and verifies
+the unpaid x402 gate. The commands below remain useful for manual maintenance.
+
 The proxy is a Next.js app that builds to a standalone server (`output: "standalone"`)
 and ships as a container (`Dockerfile`). On Cloud Run it authenticates to BigQuery via
 its **attached service account** — so there is **no `GCP_SERVICE_ACCOUNT_JSON` key** to

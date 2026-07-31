@@ -16,6 +16,9 @@ margin), settled onchain via x402. The price for each query is computed from a B
 *“install the skill at https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app/skill, then help me deploy a storage bucket without a GCP account.”*.
 
 See [DESIGN.md](./DESIGN.md) for the full architecture and threat model.
+To reproduce the complete service in another GCP project, use the
+[AI-agent migration runbook](./MIGRATION.md) and the idempotent scripts under
+`scripts/migration/`.
 
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows
