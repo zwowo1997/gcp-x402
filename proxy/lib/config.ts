@@ -23,11 +23,22 @@ function num(name: string, fallback: number): number {
   return n;
 }
 
+function choice<T extends string>(name: string, allowed: readonly T[], fallback: T): T {
+  const value = (process.env[name] ?? fallback) as T;
+  if (!allowed.includes(value)) throw new Error(`Env var ${name} must be one of: ${allowed.join(", ")}`);
+  return value;
+}
+
 const networkName = process.env.X402_NETWORK ?? "base-sepolia";
 const network = networkName === "base" ? base : baseSepolia;
 
 export const config = {
   testMode: process.env.TEST_MODE !== "false",
+  /** V3 is sandbox-only until an audited x402-v2 facilitator and Coinbase adapter exist. */
+  v3RealSettlementEnabled: process.env.V3_REAL_SETTLEMENT_ENABLED === "true",
+  /** Preview images reject every legacy paid API route at middleware level. */
+  v3PreviewOnly: process.env.V3_PREVIEW_ONLY === "true",
+  v3SimulationStore: choice("V3_SIMULATION_STORE", ["memory", "firestore"] as const, process.env.NODE_ENV === "production" ? "firestore" : "memory"),
   maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
   maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 20),
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),

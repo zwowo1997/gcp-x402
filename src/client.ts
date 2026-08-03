@@ -13,8 +13,6 @@ import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 import { lockedServiceHelp } from "./project-context.js";
 import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
 
-const account = getAccount();
-
 // Cap what the wrapper will auto-pay without a fresh decision, in USDC base
 // units (6 decimals). A hard backstop against a mispriced/hostile quote.
 const maxAutoPayBaseUnits = BigInt(Math.ceil(config.maxPaymentUsd * 1e6));
@@ -26,7 +24,10 @@ const serviceFetch: typeof fetch = (input, init = {}) => {
   return fetch(input, { ...init, headers });
 };
 
-const paidFetch = wrapFetchWithPayment(serviceFetch, account, maxAutoPayBaseUnits);
+/** Create/load a wallet only for an operation that can actually pay. */
+function paidFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
+  return wrapFetchWithPayment(serviceFetch, getAccount(), maxAutoPayBaseUnits)(input, init);
+}
 
 async function serviceError(response: Response, operation: string): Promise<Error> {
   const body = await response.text();
@@ -36,7 +37,7 @@ async function serviceError(response: Response, operation: string): Promise<Erro
   return new Error(`${operation} failed (${response.status}): ${body}`);
 }
 
-export const walletAddress = account.address;
+export function walletAddress(): string { return getAccount().address; }
 
 const ERC20_BALANCE_ABI = [
   {
@@ -92,6 +93,7 @@ export interface WalletInfo {
 
 /** Address + live USDC balance + how to fund it. */
 export async function walletInfo(): Promise<WalletInfo> {
+  const account = getAccount();
   const net = await proxyNetwork();
   const pub = createPublicClient({ transport: http(net.rpcUrl) });
 
@@ -218,6 +220,56 @@ export async function listDatasets(): Promise<unknown> {
   const res = await serviceFetch(new URL("/api/datasets", config.proxyUrl));
   if (!res.ok) throw new Error(`/api/datasets failed: ${res.status}`);
   return res.json();
+}
+
+export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
+export type V3DurationMinutes = 15 | 30 | 60;
+export type V3SimulationAction = "approve" | "fund" | "provision" | "stop" | "resume" | "shutdown" | "cancel";
+export interface V3SimulationResult { stackId: string; dashboardPath: string; dashboardUrl?: string; [key: string]: unknown; }
+
+/**
+ * V3 dry-run only. It deliberately uses ordinary fetch rather than paidFetch:
+ * this endpoint cannot transfer funds or provision cloud resources.
+ */
+export async function v3Catalog(): Promise<unknown> {
+  const res = await serviceFetch(new URL("/api/v3/catalog", config.proxyUrl));
+  if (!res.ok) throw await serviceError(res, "V3 catalog");
+  return res.json();
+}
+
+function v3DashboardUrl(path: string): string | undefined {
+  const session = betaSessionToken();
+  if (!session) return undefined;
+  const dashboard = new URL(path, config.proxyUrl);
+  dashboard.hash = new URLSearchParams({ session }).toString();
+  return dashboard.toString();
+}
+
+export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes }): Promise<V3SimulationResult> {
+  const res = await serviceFetch(new URL("/api/v3/simulate", config.proxyUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await serviceError(res, "V3 simulation");
+  const result = await res.json() as V3SimulationResult;
+  return { ...result, dashboardUrl: typeof result.dashboardPath === "string" ? v3DashboardUrl(result.dashboardPath) : undefined };
+}
+
+export async function v3SimulationStatus(stackId: string): Promise<V3SimulationResult> {
+  const res = await serviceFetch(new URL(`/api/v3/simulations/${encodeURIComponent(stackId)}`, config.proxyUrl));
+  if (!res.ok) throw await serviceError(res, "V3 simulation status");
+  const result = await res.json() as V3SimulationResult;
+  return { ...result, dashboardUrl: typeof result.dashboardPath === "string" ? v3DashboardUrl(result.dashboardPath) : undefined };
+}
+
+export async function controlV3Simulation(stackId: string, action: V3SimulationAction): Promise<V3SimulationResult> {
+  const res = await serviceFetch(new URL(`/api/v3/simulations/${encodeURIComponent(stackId)}`, config.proxyUrl), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw await serviceError(res, "V3 simulation control");
+  const result = await res.json() as V3SimulationResult;
+  return { ...result, dashboardUrl: typeof result.dashboardPath === "string" ? v3DashboardUrl(result.dashboardPath) : undefined };
 }
 
 export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; durationMinutes?: number; }

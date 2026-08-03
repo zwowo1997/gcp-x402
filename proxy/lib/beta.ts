@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "./config";
 
@@ -7,6 +7,8 @@ export const BETA_SESSION_HEADER = "x-gcp-x402-session";
 interface SessionPayload {
   iat: number;
   exp: number;
+  /** Present on newly issued sessions; older valid beta sessions remain accepted. */
+  sid?: string;
 }
 
 function configured(): { password: string; sessionSecret: string } | null {
@@ -33,7 +35,7 @@ export function issueBetaSession(): { token: string; expiresAt: string } {
   const values = configured();
   if (!values) throw new Error("Private-beta access is not configured.");
   const now = Math.floor(Date.now() / 1000);
-  const payload: SessionPayload = { iat: now, exp: now + config.betaSessionTtlSeconds };
+  const payload: SessionPayload = { iat: now, exp: now + config.betaSessionTtlSeconds, sid: randomUUID() };
   const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   return { token: `${body}.${hmac(body, values.sessionSecret)}`, expiresAt: new Date(payload.exp * 1000).toISOString() };
 }
