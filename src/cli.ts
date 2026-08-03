@@ -5,7 +5,7 @@
 // MCP registration. Output is written for an agent to read: a human-readable
 // summary on stderr, the actual data (rows / json) on stdout.
 
-import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog } from "./client.js";
 import { config } from "./config.js";
 import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
 
@@ -31,6 +31,9 @@ Commands:
   trading-control <id> <capability> <start|stop|resume|shutdown> Control a paper-trading stack.
   trading-receipt <id>   Recover a locally saved paid trading receipt/capability.
   trading-receipts       List locally saved trading deployment receipts.
+  v3-catalog             Show the v3 duration-aware, simulation-only payment plans.
+  v3-simulate <product> <15|30|60>
+                         Preview AP2-derived mandate, Coinbase sandbox handoff, and resources.
   help                   Show this message.
 
 Only bigquery-public-data tables are queryable; read-only (no DML/DDL).`;
@@ -127,6 +130,18 @@ export async function runCli(argv: string[]): Promise<number> {
       if (!argv[1] || !argv[2] || !argv[3]) return usageError("trading-control <stack-id> <capability> <start|stop|resume|shutdown>");
       console.log(JSON.stringify(await controlPaperTrading(argv[1], argv[2], argv[3] as "start" | "stop" | "resume" | "shutdown"), null, 2));
       return 0;
+    case "v3-catalog":
+      console.log(JSON.stringify(await v3Catalog(), null, 2));
+      return 0;
+    case "v3-simulate": {
+      const productId = argv[1] as "trading.paper.ema" | "vm.small" | "storage.small";
+      const durationMinutes = Number(argv[2]);
+      if (!productId || !["trading.paper.ema", "vm.small", "storage.small"].includes(productId) || ![15, 30, 60].includes(durationMinutes)) {
+        return usageError("v3-simulate <trading.paper.ema|vm.small|storage.small> <15|30|60>");
+      }
+      console.log(JSON.stringify(await simulateV3Deployment({ productId, durationMinutes: durationMinutes as 15 | 30 | 60 }), null, 2));
+      return 0;
+    }
 
     case "help":
     case "--help":

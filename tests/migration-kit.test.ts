@@ -31,3 +31,17 @@ test("migration verifier cannot initiate a paid deployment", async () => {
   assert.match(source, /\[\[ "\$payment_status" == "402" \]\]/);
   assert.doesNotMatch(source, /X-PAYMENT|x-payment/);
 });
+
+test("v3 release coordinator requires a configuration file, version, and explicit mutation flag", async () => {
+  const [source, metadata, guide] = await Promise.all([
+    readFile("scripts/release.sh", "utf8"), stat("scripts/release.sh"), readFile("V3-MIGRATION.md", "utf8"),
+  ]);
+  assert.ok((metadata.mode & 0o111) !== 0, "scripts/release.sh must be executable");
+  assert.match(source, /--allow-mutation/);
+  assert.match(source, /real_settlement=disabled/);
+  assert.match(guide, /V3_REAL_SETTLEMENT_ENABLED=false/);
+  assert.match(guide, /Do not claim user-signed AP2/);
+  const deploy = await readFile("scripts/migration/deploy-service.sh", "utf8");
+  assert.match(deploy, /V3_REAL_SETTLEMENT_ENABLED=false/);
+  assert.match(deploy, /not implemented in this beta release/);
+});

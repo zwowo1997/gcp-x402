@@ -220,6 +220,29 @@ export async function listDatasets(): Promise<unknown> {
   return res.json();
 }
 
+export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
+export type V3DurationMinutes = 15 | 30 | 60;
+
+/**
+ * V3 dry-run only. It deliberately uses ordinary fetch rather than paidFetch:
+ * this endpoint cannot transfer funds or provision cloud resources.
+ */
+export async function v3Catalog(): Promise<unknown> {
+  const res = await serviceFetch(new URL("/api/v3/catalog", config.proxyUrl));
+  if (!res.ok) throw await serviceError(res, "V3 catalog");
+  return res.json();
+}
+
+export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes }): Promise<unknown> {
+  const res = await serviceFetch(new URL("/api/v3/simulate", config.proxyUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...input, payer: account.address }),
+  });
+  if (!res.ok) throw await serviceError(res, "V3 simulation");
+  return res.json();
+}
+
 export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; durationMinutes?: number; }
 export interface ProvisionResult { jobId: string; resourceId: string; expiresAt: string; maxPriceUsd: number; capability: string; }
 export async function provisionCatalog(): Promise<unknown> {

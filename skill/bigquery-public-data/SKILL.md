@@ -45,6 +45,27 @@ The GitHub client otherwise defaults to the original operator deployment.
 | `trading-status <stack-id> <capability>` | Inspect a paper stack and lifecycle events. |
 | `trading-control <stack-id> <capability> <stop|resume|shutdown>` | Control a paper stack. |
 | `trading-receipts` | List locally saved successful deployments without printing capabilities. |
+| `v3-catalog` | Show duration-aware v3 sandbox plans; free and non-provisioning. |
+| `v3-simulate <product> <15\|30\|60>` | Preview a Coinbase sandbox handoff, AP2-derived mandate, and resource plan. |
+
+## V3 checkout sandbox (safe preview)
+
+Use v3 only when the user asks to preview the future card/onramp experience, compare
+15/30/60-minute costs, or rehearse an AP2-controlled deployment. It is deliberately
+**simulation-only**: it never submits a stablecoin payment, creates a cloud resource,
+collects card/KYC data, or places a Hyperliquid order.
+
+```bash
+npx -y github:zwowo1997/gcp-x402 v3-catalog
+npx -y github:zwowo1997/gcp-x402 v3-simulate trading.paper.ema 15
+```
+
+State the result accurately: the displayed `expectedChargeUsd` is a proposed final
+settlement after successful provisioning; `authorizationCapUsd` is the maximum that a
+future x402 v2 `upto` authorization would permit. Unused authorization is never
+transferred. The returned AP2-derived mandate is a beta request-binding record, not a
+human-controlled AP2 Trusted-Surface signature. Coinbase sandbox/hosted onramp is a
+future integration and may require identity verification; never imply a KYC bypass.
 
 Before any service command, determine the agent's absolute working directory. Ask the
 user to unlock from that exact directory, rendering the real path and quoting it safely:

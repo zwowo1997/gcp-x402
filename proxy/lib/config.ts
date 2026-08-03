@@ -28,6 +28,8 @@ const network = networkName === "base" ? base : baseSepolia;
 
 export const config = {
   testMode: process.env.TEST_MODE !== "false",
+  /** V3 is sandbox-only until an audited x402-v2 facilitator and Coinbase adapter exist. */
+  v3RealSettlementEnabled: process.env.V3_REAL_SETTLEMENT_ENABLED === "true",
   maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
   maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 20),
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),

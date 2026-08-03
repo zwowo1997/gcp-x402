@@ -20,6 +20,12 @@ To reproduce the complete service in another GCP project, use the
 [AI-agent migration runbook](./MIGRATION.md) and the idempotent scripts under
 `scripts/migration/`.
 
+The v3 work is intentionally isolated from the live v2 payment path. It adds a free
+checkout simulator at `/v3-demo` and `/api/v3/*` for duration-based estimates,
+AP2-derived mandate previews, and a Coinbase sandbox handoff mock. It creates no
+resources and moves no funds. See [V3-MIGRATION.md](./V3-MIGRATION.md) for the
+production gates and independent-project release procedure.
+
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows
 ```
