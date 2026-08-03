@@ -1,1 +1,1 @@
-export { V3_DURATIONS, V3_VERSION, createV3MandateDraft, isV3Duration, simulateV3Deployment, v3Quote, type V3DurationMinutes, type V3ProductId } from "../../src/v3-contracts";
+export { V3_DURATIONS, V3_VERSION, canonicalJson, createV3MandateDraft, hashMandatePayload, isV3Duration, mandateHashPayload, simulateV3Deployment, simulatedEmbeddedWallet, v3Quote, v3ResourceBreakdown, type V3DurationMinutes, type V3ProductId, type V3Simulation, type V3SimulationStatus } from "../../src/v3-contracts";

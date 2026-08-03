@@ -8,8 +8,10 @@ V2 remains a separate rollback point; do not replace it in place.
 
 - Separate `/api/v3/*` simulation surface and `/v3-demo` checkout preview.
 - 15, 30, and 60 minute plans with displayed expected charge and authorization cap.
-- AP2-derived EVM mandate draft binding payer, request, duration, quote and expiry.
-- Coinbase sandbox handoff simulation only.
+- AP2-derived EVM mandate draft with a recursively canonical request hash binding payer,
+  request, quote, payee, network, asset, issue/expiry times, and nonce.
+- Simulated embedded wallet, Apple Pay approval, Coinbase sandbox funding, provisioning,
+  runtime controls, and automatic expiry.
 - No Cloud resources, stablecoin transaction, live exchange order, card data, or KYC data.
 
 The beta contract is not a full AP2 Trusted Surface. Do not claim user-signed AP2
@@ -41,8 +43,10 @@ facilitator have passed integration tests.
 6. Only after human approval, use `scripts/release.sh bootstrap|deploy|verify ...
    --allow-mutation`. The explicit flag is required even when the configuration is valid.
 7. Keep `X402_NETWORK=base-sepolia`, `TEST_MODE=true`, and `V3_REAL_SETTLEMENT_ENABLED=false`.
-   Verify `/api/v3/catalog` and a POST to `/api/v3/simulate`; both must be free and
-   must not make a payment challenge or provision resources.
+   Run `scripts/migration/verify-v3.sh`. It unlocks a temporary private-beta session,
+   verifies the protected v3 catalog, creates one free simulation, proves its prorated
+   resource total reconciles to the quote, and exercises `approve → fund → provision`.
+   It never sends an x402 header, moves funds, or creates GCP infrastructure.
 
 ## Required production gates (not included in beta)
 
@@ -60,10 +64,21 @@ facilitator have passed integration tests.
 ## Release record and rollback
 
 Every deployment must record the Git commit, Git tag, image digests, Cloud Run revision,
-dashboard/skill URLs, configuration schema version, migration guide version, and environment
-template revision. `scripts/release.sh` writes `release-manifest.json` on mutation actions;
-review and commit it with the release record only after removing target-specific identifiers if
-the repository is public.
+dashboard/skill URLs, skill SHA-256, configuration schema version, migration guide version,
+environment template revision, and verification result. `scripts/release.sh` writes the
+absolute repository-root `release-manifest.json` during mutation actions and finalizes it after
+deployment/verification. Do not commit target project identifiers into a public repository.
+
+## Publication sequence
+
+1. Keep v2 active and unchanged.
+2. Push the v3 branch, open a PR, and tag an immutable preview commit after review.
+3. Deploy v3 only to a separate preview service/Firebase channel, with the beta password and
+   rate limit still enabled.
+4. Distribute that preview service’s dynamically rendered `/skill` URL—not the v2 URL—and
+   tell agents that full-stack requests begin with a free v3 rehearsal.
+5. Promote only after `verify-v3.sh`, mobile/visual QA, and a human approval. A production
+   onramp/x402 implementation is still blocked by the gates above.
 
 Rollback returns traffic to a known ready Cloud Run revision; it never deletes Spanner,
 Firestore, secrets, or tenant data. Use the `rollback` action with `ROLLBACK_REVISION` in the

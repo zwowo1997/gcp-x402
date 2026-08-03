@@ -47,25 +47,43 @@ The GitHub client otherwise defaults to the original operator deployment.
 | `trading-receipts` | List locally saved successful deployments without printing capabilities. |
 | `v3-catalog` | Show duration-aware v3 sandbox plans; free and non-provisioning. |
 | `v3-simulate <product> <15\|30\|60>` | Preview a Coinbase sandbox handoff, AP2-derived mandate, and resource plan. |
+| `v3-status <stack-id>` | Inspect the protected v3 checkout rehearsal and dashboard link. |
+| `v3-control <stack-id> <action>` | Advance a rehearsal: `approve`, `fund`, `provision`, `stop`, `resume`, `shutdown`, or `cancel`. |
 
 ## V3 checkout sandbox (safe preview)
 
-Use v3 only when the user asks to preview the future card/onramp experience, compare
-15/30/60-minute costs, or rehearse an AP2-controlled deployment. It is deliberately
-**simulation-only**: it never submits a stablecoin payment, creates a cloud resource,
-collects card/KYC data, or places a Hyperliquid order.
+Use v3 first when the user asks for a no-wallet, card/onramp, Apple Pay, Coinbase, or
+infrastructure-demo experience. It rehearses the intended journey before any real
+deployment. It is deliberately **simulation-only**: it never submits a stablecoin
+payment, creates a cloud resource, collects card/KYC data, or places a Hyperliquid order.
 
 ```bash
 npx -y github:zwowo1997/gcp-x402 v3-catalog
 npx -y github:zwowo1997/gcp-x402 v3-simulate trading.paper.ema 15
 ```
 
-State the result accurately: the displayed `expectedChargeUsd` is a proposed final
-settlement after successful provisioning; `authorizationCapUsd` is the maximum that a
-future x402 v2 `upto` authorization would permit. Unused authorization is never
-transferred. The returned AP2-derived mandate is a beta request-binding record, not a
-human-controlled AP2 Trusted-Surface signature. Coinbase sandbox/hosted onramp is a
-future integration and may require identity verification; never imply a KYC bypass.
+V3 requires the normal directory-specific beta unlock. It creates a simulated embedded
+wallet automatically; never ask the user for an EVM address, crypto wallet, GCP account,
+card number, or password in chat. After `v3-simulate`, give the user only the returned
+private `dashboardUrl`. In the rehearsal, advance one deliberate step at a time:
+
+1. Explain the selected duration, expected settlement, and authorization maximum.
+2. Ask whether to simulate Apple Pay approval. On approval run `v3-control <stackId> approve`.
+3. Ask whether to simulate Coinbase embedded-wallet funding. Then run `fund`.
+4. Ask whether to simulate infrastructure provisioning. Then run `provision`.
+5. Show the dashboard, exact prorated per-service estimate, status, expiry, and lifecycle.
+6. Offer simulated `stop`, `resume`, `shutdown`, or `cancel`; never imply they control GCP.
+
+State the result accurately: `expectedChargeUsd` is a proposed final settlement after
+successful provisioning; `authorizationCapUsd` is the maximum that a future x402 v2
+`upto` authorization would permit. Unused authorization is never transferred. The
+AP2-derived mandate is a beta request-binding record, not a human-controlled AP2
+Trusted-Surface signature. Coinbase sandbox/hosted onramp is not connected and a future
+provider may require identity verification; never imply a KYC bypass.
+
+For a request to actually create billable test infrastructure, state that v3 cannot do
+that. Offer the established v2 paper-only workflow only after a fresh explicit approval;
+do not silently substitute a paid v2 deployment for a v3 preview.
 
 Before any service command, determine the agent's absolute working directory. Ask the
 user to unlock from that exact directory, rendering the real path and quoting it safely:

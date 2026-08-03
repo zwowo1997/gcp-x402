@@ -7,6 +7,7 @@ const scripts = [
   "scripts/migration/bootstrap-project.sh",
   "scripts/migration/deploy-service.sh",
   "scripts/migration/verify-service.sh",
+  "scripts/migration/verify-v3.sh",
 ];
 
 test("migration scripts are executable and do not embed the source project", async () => {
@@ -44,4 +45,8 @@ test("v3 release coordinator requires a configuration file, version, and explici
   const deploy = await readFile("scripts/migration/deploy-service.sh", "utf8");
   assert.match(deploy, /V3_REAL_SETTLEMENT_ENABLED=false/);
   assert.match(deploy, /not implemented in this beta release/);
+  const v3Verifier = await readFile("scripts/migration/verify-v3.sh", "utf8");
+  assert.match(v3Verifier, /realSettlementEnabled == false/);
+  assert.match(v3Verifier, /checkout_approved_funded_running_simulated/);
+  assert.match(source, /\$manifest/);
 });
