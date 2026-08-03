@@ -1,6 +1,6 @@
 {
   "name": "gcp-x402",
-  "version": "0.3.0-beta.2",
+  "version": "0.3.0-beta.3",
   "description": "MCP server to query BigQuery public datasets via the gcp-x402 x402 proxy",
   "type": "module",
   "bin": {

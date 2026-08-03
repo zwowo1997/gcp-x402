@@ -9,12 +9,14 @@ import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { renderSkillForOrigin } from "@/lib/skill";
+import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const md = await readFile(join(process.cwd(), "public", "skill.md"), "utf8");
+    const filename = config.v3PreviewOnly ? "v3-skill.md" : "skill.md";
+    const md = await readFile(join(process.cwd(), "public", filename), "utf8");
     // A replica should advertise itself, not the original operator deployment.
     // The canonical source remains directly usable for the official service.
     const serviceUrl = new URL(request.url).origin;

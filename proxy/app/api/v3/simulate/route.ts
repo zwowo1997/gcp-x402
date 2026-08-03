@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     limitV3Simulation(request.headers.get(BETA_SESSION_HEADER));
     const session = request.headers.get(BETA_SESSION_HEADER);
-    const simulation = saveV3Simulation(simulateV3Deployment({ productId: productId as V3ProductId, durationMinutes, payTo: config.payTo, network: config.network.id, asset: config.network.usdcAddress }), session);
+    const simulation = await saveV3Simulation(simulateV3Deployment({ productId: productId as V3ProductId, durationMinutes, payTo: config.payTo, network: config.network.id, asset: config.network.usdcAddress }), session);
     return NextResponse.json(simulation, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create simulation." }, { status: 400 });

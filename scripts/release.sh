@@ -54,19 +54,19 @@ case "$action" in
     write_manifest
     case "$action" in
       bootstrap)
-        "$root/scripts/migration/bootstrap-project.sh"
+        "$root/scripts/migration/bootstrap-v3-preview.sh"
         finalize_manifest "bootstrapped"
         ;;
       deploy)
-        "$root/scripts/migration/deploy-service.sh"
-        service_name="${SERVICE_NAME:-gcp-x402-tokyo}"
+        "$root/scripts/migration/deploy-v3-preview.sh"
+        service_name="${SERVICE_NAME:-gcp-x402-v3-preview}"
         service_url="$(gcloud run services describe "$service_name" --project="$TARGET_PROJECT_ID" --region="${TARGET_REGION:-asia-northeast1}" --format='value(status.url)')"
         revision="$(gcloud run services describe "$service_name" --project="$TARGET_PROJECT_ID" --region="${TARGET_REGION:-asia-northeast1}" --format='value(status.latestReadyRevisionName)')"
         registry="${TARGET_REGION:-asia-northeast1}-docker.pkg.dev/${TARGET_PROJECT_ID}/${ARTIFACT_REPOSITORY:-gcp-x402}"
-        proxy_digest="$(gcloud artifacts docker images describe "$registry/proxy:$short_commit" --format='value(image_summary.digest)' 2>/dev/null || true)"
-        runtime_digest="$(gcloud artifacts docker images describe "$registry/hyperliquid-paper:$short_commit" --format='value(image_summary.digest)' 2>/dev/null || true)"
+        proxy_digest="$(gcloud artifacts docker images describe "$registry/v3-preview:$short_commit" --format='value(image_summary.digest)' 2>/dev/null || true)"
+        runtime_digest=""
         skill_sha="$(curl -fsSL "$service_url/skill" | shasum -a 256 | awk '{print $1}')"
-        finalize_manifest "deployed" "$revision" "$proxy_digest" "$runtime_digest" "$skill_sha" "https://${FIREBASE_SITE_ID}.web.app"
+        finalize_manifest "deployed" "$revision" "$proxy_digest" "$runtime_digest" "$skill_sha" "${service_url}/v3-demo"
         ;;
       verify)
         SERVICE_URL="${SERVICE_URL:-}" "$root/scripts/migration/verify-v3.sh"
@@ -75,7 +75,7 @@ case "$action" in
         ;;
       rollback)
         : "${ROLLBACK_REVISION:?set ROLLBACK_REVISION in the config file}"
-        gcloud run services update-traffic "${SERVICE_NAME:-gcp-x402-tokyo}" --project="$TARGET_PROJECT_ID" --region="${TARGET_REGION:-asia-northeast1}" --to-revisions="${ROLLBACK_REVISION}=100"
+        gcloud run services update-traffic "${SERVICE_NAME:-gcp-x402-v3-preview}" --project="$TARGET_PROJECT_ID" --region="${TARGET_REGION:-asia-northeast1}" --to-revisions="${ROLLBACK_REVISION}=100"
         finalize_manifest "rolled-back" "${ROLLBACK_REVISION}"
         ;;
     esac

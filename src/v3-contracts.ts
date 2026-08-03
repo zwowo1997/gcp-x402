@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 /** V3 is an isolated, non-financial checkout rehearsal. */
-export const V3_VERSION = "3.0.0-beta.2";
+export const V3_VERSION = "3.0.0-beta.3";
 export const V3_DURATIONS = [15, 30, 60] as const;
 export type V3DurationMinutes = (typeof V3_DURATIONS)[number];
 export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
@@ -25,6 +25,20 @@ export interface V3Resource {
   region: string;
   action: string;
   estimatedUsd: number;
+}
+
+export interface V3Telemetry {
+  market: Array<{ observedAt: string; midUsd: number }>;
+  strategy: {
+    name: "BTC EMA hedge (paper)";
+    fastEma: number;
+    slowEma: number;
+    signal: "warming_up" | "short_hedge" | "stopped";
+    virtualEquityUsd: number;
+    positionNotionalUsd: number;
+    sessionPnlUsd: number;
+  };
+  orders: Array<{ id: string; at: string; side: "sell" | "buy"; sizeBtc: number; priceUsd: number; status: "simulated_fill" }>;
 }
 
 const authorizationCaps: Record<V3ProductId, Record<V3DurationMinutes, number>> = {
@@ -147,8 +161,28 @@ export interface V3Simulation {
   embeddedWallet: { provider: "coinbase-sandbox"; address: string; state: "created_simulated" };
   onramp: { provider: "coinbase-sandbox"; state: "not_started" | "approved" | "funded_simulated"; applePay: "available_in_simulation"; kyc: "not_checked"; qrPayload: string };
   resources: V3Resource[];
+  telemetry: V3Telemetry;
   timeline: Array<{ state: string; detail: string; at: string }>;
   warning: string;
+}
+
+export function simulatedV3Telemetry(stackId: string, createdAt: string): V3Telemetry {
+  const seed = Number.parseInt(createHash("sha256").update(stackId).digest("hex").slice(0, 8), 16);
+  const base = 63_000 + seed % 1_500;
+  const start = new Date(createdAt).getTime();
+  const market = Array.from({ length: 24 }, (_, index) => ({
+    observedAt: new Date(start + index * 15_000).toISOString(),
+    midUsd: Math.round((base + Math.sin(index / 2.7) * 95 - index * 3.4) * 100) / 100,
+  }));
+  const latest = market.at(-1)!.midUsd;
+  return {
+    market,
+    strategy: { name: "BTC EMA hedge (paper)", fastEma: latest - 8.12, slowEma: latest + 14.47, signal: "short_hedge", virtualEquityUsd: 10_003.42, positionNotionalUsd: -1_250, sessionPnlUsd: 3.42 },
+    orders: [
+      { id: `paper-${stackId.slice(-8)}-1`, at: market[16].observedAt, side: "sell", sizeBtc: 0.01, priceUsd: market[16].midUsd, status: "simulated_fill" },
+      { id: `paper-${stackId.slice(-8)}-2`, at: market[21].observedAt, side: "sell", sizeBtc: 0.01, priceUsd: market[21].midUsd, status: "simulated_fill" },
+    ],
+  };
 }
 
 export function simulatedEmbeddedWallet(seed: string): string {
@@ -167,6 +201,7 @@ export function simulateV3Deployment(input: { productId: V3ProductId; durationMi
     quote, mandate, embeddedWallet: { provider: "coinbase-sandbox", address: payer, state: "created_simulated" },
     onramp: { provider: "coinbase-sandbox", state: "not_started", applePay: "available_in_simulation", kyc: "not_checked", qrPayload: `coinbase-sandbox://onramp/${mandate.mandateId}` },
     resources: v3ResourceBreakdown(quote),
+    telemetry: { market: [], strategy: { name: "BTC EMA hedge (paper)", fastEma: 0, slowEma: 0, signal: "warming_up", virtualEquityUsd: 10_000, positionNotionalUsd: 0, sessionPnlUsd: 0 }, orders: [] },
     timeline: [{ state: "checkout_created", at: now.toISOString(), detail: "Embedded-wallet and Apple Pay checkout rehearsal created. No wallet, card, KYC record, payment, or cloud resource exists." }],
     warning: "Simulation — no money transferred and no cloud resources created. Coinbase, x402 v2 settlement, and Hyperliquid execution remain feature-gated.",
   };

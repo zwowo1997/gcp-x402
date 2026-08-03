@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canonicalJson, createV3MandateDraft, hashMandatePayload, simulateV3Deployment, v3Quote, v3ResourceBreakdown } from "../src/v3-contracts.js";
+import { canonicalJson, createV3MandateDraft, hashMandatePayload, simulateV3Deployment, simulatedV3Telemetry, v3Quote, v3ResourceBreakdown } from "../src/v3-contracts.js";
 
 test("v3 quotes are duration-aware, capped, and charge only the expected final amount", () => {
   assert.deepEqual(v3Quote("trading.paper.ema", 15), {
@@ -10,6 +10,15 @@ test("v3 quotes are duration-aware, capped, and charge only the expected final a
   assert.equal(v3Quote("vm.small", 30).expectedChargeUsd, 0.2);
   assert.equal(v3Quote("storage.small", 60).expectedChargeUsd, 0.17);
   assert.equal(v3Quote("trading.paper.ema", 60).expectedChargeUsd, 0.19);
+});
+
+test("v3 paper telemetry is deterministic, visible, and never executable", () => {
+  const first = simulatedV3Telemetry("sim-test", "2026-08-03T12:00:00.000Z");
+  const second = simulatedV3Telemetry("sim-test", "2026-08-03T12:00:00.000Z");
+  assert.deepEqual(first, second);
+  assert.equal(first.market.length, 24);
+  assert.equal(first.strategy.signal, "short_hedge");
+  assert.ok(first.orders.every((order) => order.status === "simulated_fill"));
 });
 
 test("v3 mandate binds every payment-critical field and has a ten-minute expiry", () => {

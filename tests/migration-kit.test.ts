@@ -8,6 +8,8 @@ const scripts = [
   "scripts/migration/deploy-service.sh",
   "scripts/migration/verify-service.sh",
   "scripts/migration/verify-v3.sh",
+  "scripts/migration/bootstrap-v3-preview.sh",
+  "scripts/migration/deploy-v3-preview.sh",
 ];
 
 test("migration scripts are executable and do not embed the source project", async () => {
@@ -48,5 +50,16 @@ test("v3 release coordinator requires a configuration file, version, and explici
   const v3Verifier = await readFile("scripts/migration/verify-v3.sh", "utf8");
   assert.match(v3Verifier, /realSettlementEnabled == false/);
   assert.match(v3Verifier, /checkout_approved_funded_running_simulated/);
+  assert.match(v3Verifier, /legacy_paid_routes=disabled/);
+  const previewDeploy = await readFile("scripts/migration/deploy-v3-preview.sh", "utf8");
+  assert.match(previewDeploy, /V3_PREVIEW_ONLY=true/);
+  assert.doesNotMatch(previewDeploy, /spanner|firebase|trading-runtime/i);
+  const previewBootstrap = await readFile("scripts/migration/bootstrap-v3-preview.sh", "utf8");
+  assert.match(previewBootstrap, /v3_simulations/);
+  assert.doesNotMatch(previewBootstrap, /spanner.googleapis.com|compute.googleapis.com|pubsub.googleapis.com/);
+  const middleware = await readFile("proxy/middleware.ts", "utf8");
+  assert.match(middleware, /V3_PREVIEW_ONLY/);
+  assert.match(middleware, /api\/v3/);
+  assert.match(middleware, /status: 503/);
   assert.match(source, /\$manifest/);
 });

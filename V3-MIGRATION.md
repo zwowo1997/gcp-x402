@@ -23,14 +23,16 @@ facilitator have passed integration tests.
 1. Clone the exact Git tag/commit. Do not copy working directories, `.gcp-x402`,
    Firebase state, Firestore documents, Spanner rows, user wallets, capabilities,
    receipts, images, or secret values.
-2. Copy `migration/config.example.env` outside Git, give it mode 600, choose a new
-   project/Firebase site/receiving address, and generate fresh control secrets.
-3. Read the v2 baseline [MIGRATION.md](./MIGRATION.md). Its bootstrap is billable
-   because Spanner has recurring cost; it requires explicit acknowledgement.
+2. Copy `migration/config.example.env` outside Git, give it mode 600, and choose a new
+   project and syntactically valid preview receiving address. Generate fresh secrets.
+3. The v3 preview bootstrap is deliberately minimal: Cloud Run, Artifact Registry,
+   Secret Manager, and Firestore only. It does not create Spanner, Pub/Sub, Cloud Tasks,
+   Firebase, Compute Engine resources, or a trading runtime. Read [MIGRATION.md](./MIGRATION.md)
+   only when separately migrating the paid v2 baseline.
 4. Run a read-only release plan:
 
    ```bash
-   scripts/release.sh plan --config /private/tmp/gcp-x402-target.env --version v3.0.0-beta.1
+   scripts/release.sh plan --config /private/tmp/gcp-x402-target.env --version v3.0.0-beta.3
    ```
 
 5. Run local verification before a target deployment:
@@ -73,7 +75,7 @@ deployment/verification. Do not commit target project identifiers into a public 
 
 1. Keep v2 active and unchanged.
 2. Push the v3 branch, open a PR, and tag an immutable preview commit after review.
-3. Deploy v3 only to a separate preview service/Firebase channel, with the beta password and
+3. Deploy v3 only to the separate `gcp-x402-v3-preview` Cloud Run service, with the beta password and
    rate limit still enabled.
 4. Distribute that preview service’s dynamically rendered `/skill` URL—not the v2 URL—and
    tell agents that full-stack requests begin with a free v3 rehearsal.
