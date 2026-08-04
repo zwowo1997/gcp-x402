@@ -10,3 +10,9 @@ export function renderSkillForOrigin(markdown: string, origin: string): string {
     markdown,
   );
 }
+
+export function publicSkillOrigin(requestUrl: string, configuredOrigin?: string): string {
+  const url = new URL(configuredOrigin ?? requestUrl);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Skill origin must use HTTP or HTTPS.");
+  return url.origin;
+}
