@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { renderSkillForOrigin } from "@/lib/skill";
+import { publicSkillOrigin, renderSkillForOrigin } from "@/lib/skill";
 import { config } from "@/lib/config";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const md = await readFile(join(process.cwd(), "public", filename), "utf8");
     // A replica should advertise itself, not the original operator deployment.
     // The canonical source remains directly usable for the official service.
-    const serviceUrl = new URL(request.url).origin;
+    const serviceUrl = publicSkillOrigin(request.url, config.publicBaseUrl);
     const rendered = renderSkillForOrigin(md, serviceUrl);
     return new NextResponse(rendered, {
       status: 200,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderSkillForOrigin } from "../proxy/lib/skill.js";
+import { publicSkillOrigin, renderSkillForOrigin } from "../proxy/lib/skill.js";
 import { readFile } from "node:fs/promises";
 
 test("hosted skill advertises the replica origin", () => {
@@ -9,6 +9,13 @@ test("hosted skill advertises the replica origin", () => {
   const rendered = renderSkillForOrigin(`install ${canonical}/skill and use ${canonical}`, `${replica}/`);
   assert.equal(rendered, `install ${replica}/skill and use ${replica}`);
   assert.ok(!rendered.includes(canonical));
+});
+
+test("hosted skill prefers PUBLIC_BASE_URL over the container listener", () => {
+  assert.equal(
+    publicSkillOrigin("https://0.0.0.0:8080/skill", "https://preview.example.run.app/"),
+    "https://preview.example.run.app",
+  );
 });
 
 test("dedicated v3 preview skill cannot initiate legacy paid commands", async () => {
