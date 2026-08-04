@@ -20,6 +20,19 @@ test("migration scripts are executable and do not embed the source project", asy
   }
 });
 
+test("proxy Docker context contains its synchronized v3 contracts", async () => {
+  const [canonical, proxyCopy, proxyExport, syncScript] = await Promise.all([
+    readFile("src/v3-contracts.ts", "utf8"),
+    readFile("proxy/lib/v3-contracts.ts", "utf8"),
+    readFile("proxy/lib/v3.ts", "utf8"),
+    readFile("scripts/sync-assets.sh", "utf8"),
+  ]);
+  assert.equal(proxyCopy, canonical);
+  assert.match(proxyExport, /from "\.\/v3-contracts"/);
+  assert.doesNotMatch(proxyExport, /\.\.\/\.\.\/src/);
+  assert.match(syncScript, /src\/v3-contracts\.ts/);
+});
+
 test("migration bootstrap requires explicit billable Spanner acknowledgement", async () => {
   const source = await readFile("scripts/migration/bootstrap-project.sh", "utf8");
   assert.match(source, /ALLOW_BILLABLE_BOOTSTRAP/);
