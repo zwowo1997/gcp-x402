@@ -10,11 +10,6 @@ function req(name: string): string {
   return v.trim();
 }
 
-function reqWhen(condition: boolean, name: string): string | undefined {
-  if (!condition) return process.env[name]?.trim();
-  return req(name);
-}
-
 function num(name: string, fallback: number): number {
   const v = process.env[name];
   if (v === undefined) return fallback;
@@ -39,21 +34,27 @@ export const config = {
   /** Preview images reject every legacy paid API route at middleware level. */
   v3PreviewOnly: process.env.V3_PREVIEW_ONLY === "true",
   v3SimulationStore: choice("V3_SIMULATION_STORE", ["memory", "firestore"] as const, process.env.NODE_ENV === "production" ? "firestore" : "memory"),
+  /** Publishable MoonPay key. Keep both secret keys in Secret Manager. */
+  moonPayPublicKey: process.env.MOONPAY_PUBLIC_KEY?.trim(),
+  moonPaySecretKey: process.env.MOONPAY_SECRET_KEY?.trim(),
+  moonPayWebhookKey: process.env.MOONPAY_WEBHOOK_KEY?.trim(),
+  moonPayFiatAmountUsd: num("MOONPAY_FIAT_AMOUNT_USD", 30),
+  moonPayWebhookMaxAgeSeconds: num("MOONPAY_WEBHOOK_MAX_AGE_SECONDS", 5 * 60),
   maxGcpCostPerProvisionUsd: num("MAX_GCP_COST_PER_PROVISION_USD", 5),
   maxOutstandingGcpExposureUsd: num("MAX_OUTSTANDING_GCP_EXPOSURE_USD", 20),
   dashboardToken: process.env.DASHBOARD_TOKEN?.trim(),
   /** Private-beta password and independent signing key; both come from Secret Manager in production. */
-  betaAccessPassword: reqWhen(process.env.NODE_ENV === "production", "BETA_ACCESS_PASSWORD"),
-  betaSessionSecret: reqWhen(process.env.NODE_ENV === "production", "BETA_SESSION_SECRET"),
+  betaAccessPassword: process.env.BETA_ACCESS_PASSWORD?.trim(),
+  betaSessionSecret: process.env.BETA_SESSION_SECRET?.trim(),
   betaSessionTtlSeconds: num("BETA_SESSION_TTL_SECONDS", 8 * 60 * 60),
   maxRentalMinutes: num("MAX_RENTAL_MINUTES", 60),
   /** HMAC secret for opaque resource-management capabilities. */
-  resourceCapabilitySecret: reqWhen(process.env.NODE_ENV === "production", "RESOURCE_CAPABILITY_SECRET"),
+  resourceCapabilitySecret: process.env.RESOURCE_CAPABILITY_SECRET?.trim(),
   /** Cloud Tasks configuration is mandatory for paid provisioning in production. */
   tasksQueue: process.env.CLOUD_TASKS_QUEUE,
   tasksLocation: process.env.CLOUD_TASKS_LOCATION ?? "us-central1",
   publicBaseUrl: process.env.PUBLIC_BASE_URL?.replace(/\/$/, ""),
-  cleanupToken: reqWhen(Boolean(process.env.CLOUD_TASKS_QUEUE), "CLEANUP_TOKEN"),
+  cleanupToken: process.env.CLEANUP_TOKEN?.trim(),
   // --- Hyperliquid paper trading -------------------------------------------
   tradingRegion: process.env.TRADING_REGION ?? "asia-northeast1",
   tradingSpannerInstance: process.env.TRADING_SPANNER_INSTANCE ?? "hyperliquid-test",
@@ -66,7 +67,7 @@ export const config = {
   tradingPaymentTimeoutSeconds: num("TRADING_PAYMENT_TIMEOUT_SECONDS", 600),
   // --- BigQuery -------------------------------------------------------------
   /** Billing project that runs the jobs (NOT the public-data project). */
-  gcpProjectId: req("GCP_PROJECT_ID"),
+  get gcpProjectId(): string { return req("GCP_PROJECT_ID"); },
   /**
    * Service-account credentials as inline JSON (for hosts without a GCP identity) — the
    * @google-cloud/bigquery client also honors GOOGLE_APPLICATION_CREDENTIALS
@@ -104,7 +105,7 @@ export const config = {
   // --- x402 / settlement ----------------------------------------------------
   network,
   /** Address that receives USDC for queries. */
-  payTo: req("PAY_TO_ADDRESS"),
+  get payTo(): string { return req("PAY_TO_ADDRESS"); },
   /** Facilitator base URL exposing POST /verify and POST /settle. */
   facilitatorUrl: (process.env.FACILITATOR_URL ?? "https://x402.org/facilitator").replace(/\/$/, ""),
   /** Optional bearer for authenticated facilitators (e.g. CDP). */
@@ -113,7 +114,7 @@ export const config = {
   quoteTtlSeconds: num("QUOTE_TTL_SECONDS", 60),
 
   // --- Quote signing --------------------------------------------------------
-  quoteSecret: req("QUOTE_SECRET"),
+  get quoteSecret(): string { return req("QUOTE_SECRET"); },
 } as const;
 
 export type AppConfig = typeof config;

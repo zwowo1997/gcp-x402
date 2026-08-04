@@ -5,10 +5,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation, moonPayAvailability, moonPayCheckout } from "./client.js";
 import { config } from "./config.js";
 import { runCli } from "./cli.js";
-import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, listSandboxReceipts, sandboxAccount, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
+import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
 
 const server = new McpServer({
@@ -78,13 +78,21 @@ server.registerTool("sandbox_setup", { title: "Set up a local gcp-x402 sandbox w
 });
 server.registerTool("sandbox_catalog", { title: "Browse safe GCP sandbox plans", description: "List the allowlisted GCP plans, price estimates, provider boundary, and sandbox safety notices. Unlock first if the service asks for it.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify({ provider: paymentProviderInfo(config.paymentProvider), catalog: await v3Catalog(), safety: "Simulation-only catalog; no resources can be created." }, null, 2) }] }));
 server.registerTool("sandbox_plan", { title: "Plan GCP infrastructure from a natural-language intent", description: "Turn a request such as a Hyperliquid BTC paper-trading stack, a VM, or storage into one local allowlisted sandbox plan. It does not charge, create a checkout, or provision anything.", inputSchema: { intent: z.string().min(3).max(2_000) } }, async ({ intent }) => ({ content: [{ type: "text", text: JSON.stringify(createSandboxPlan(intent), null, 2) }] }));
-server.registerTool("sandbox_checkout", { title: "Open one protected sandbox checkout", description: "Create one idempotent checkout rehearsal for a local sandbox plan. Requires the private beta session. The supplied sandbox wallet is assigned to the checkout, but no payment or cloud provisioning occurs.", inputSchema: { planId: z.string() } }, async ({ planId }) => {
+server.registerTool("sandbox_checkout", { title: "Open one protected sandbox checkout", description: "Create one idempotent checkout rehearsal for a local sandbox plan. Requires the private beta session. With an operator-configured MoonPay test key, it also returns MoonPay's hosted Ethereum Sepolia test checkout; it never provisions or settles in this beta.", inputSchema: { planId: z.string() } }, async ({ planId }) => {
   const plan = getSandboxPlan(planId); if (!plan) throw new Error("Sandbox plan not found in this project directory.");
-  if (plan.provider.id !== "simulator") throw new Error("MoonPay test checkout needs partner credentials and is not configured. Use the simulator provider for now.");
-  const simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress });
+  const existing = getSandboxReceiptForPlan(plan.planId);
+  if (existing) {
+    const simulation = await v3SimulationStatus(existing.stackId);
+    const availability = await moonPayAvailability();
+    const moonpay = availability.enabled ? await moonPayCheckout(existing.stackId) : undefined;
+    return { content: [{ type: "text", text: JSON.stringify({ receipt: existing, simulation, moonpay, reusedReceipt: true, reuseReason: "This plan already has a checkout. Create a new plan to intentionally start another." }, null, 2) }] };
+  }
+  const simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress, requestId: plan.planId });
   const stackId = String(simulation.stackId);
   const receipt = saveSandboxReceipt({ checkoutId: `checkout-${stackId}`, planId: plan.planId, stackId, createdAt: new Date().toISOString(), dashboardUrl: typeof simulation.dashboardUrl === "string" ? simulation.dashboardUrl : undefined, status: String(simulation.status ?? "checkout"), paymentStatus: String(simulation.paymentStatus ?? "not_authorized"), trace: [{ at: new Date().toISOString(), event: "quote_created", detail: `Plan ${plan.planId} prepared.` }, { at: new Date().toISOString(), event: "checkout_opened", detail: "No card, USDC, or cloud resource was used." }] });
-  return { content: [{ type: "text", text: JSON.stringify({ receipt, simulation }, null, 2) }] };
+  const availability = await moonPayAvailability();
+  const moonpay = availability.enabled ? await moonPayCheckout(stackId) : undefined;
+  return { content: [{ type: "text", text: JSON.stringify({ receipt, simulation, moonpay }, null, 2) }] };
 });
 server.registerTool("sandbox_status", { title: "Read a sandbox checkout and payment trace", description: "Read the latest protected checkout simulation state plus the local payment trace. It never starts a new checkout or payment.", inputSchema: { checkoutId: z.string() } }, async ({ checkoutId }) => {
   const receipt = getSandboxReceipt(checkoutId); if (!receipt) throw new Error("Sandbox receipt not found in this project directory.");

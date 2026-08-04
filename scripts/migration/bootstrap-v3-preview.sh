@@ -33,6 +33,7 @@ if ! gcloud firestore databases describe --database='(default)' --project="$TARG
   gcloud firestore databases create --database='(default)' --location="$TARGET_FIRESTORE_LOCATION" --type=firestore-native --project="$TARGET_PROJECT_ID"
 fi
 gcloud firestore fields ttls update deleteAt --collection-group=v3_simulations --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet >/dev/null
+gcloud firestore fields ttls update deleteAt --collection-group=v3_simulation_requests --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet >/dev/null
 
 ensure_random_secret() {
   local name="$1"
@@ -44,7 +45,23 @@ for name in gcp-x402-v3-preview-quote-secret gcp-x402-v3-preview-resource-capabi
 if ! gcloud secrets describe gcp-x402-v3-preview-beta-password --project="$TARGET_PROJECT_ID" >/dev/null 2>&1; then
   gcloud secrets create gcp-x402-v3-preview-beta-password --data-file="$BETA_PASSWORD_FILE" --replication-policy=automatic --project="$TARGET_PROJECT_ID" >/dev/null
 fi
-for name in gcp-x402-v3-preview-quote-secret gcp-x402-v3-preview-resource-capability gcp-x402-v3-preview-beta-session-secret gcp-x402-v3-preview-beta-password; do
+secret_names=(gcp-x402-v3-preview-quote-secret gcp-x402-v3-preview-resource-capability gcp-x402-v3-preview-beta-session-secret gcp-x402-v3-preview-beta-password)
+if [[ -n "${MOONPAY_PUBLIC_KEY:-}" ]]; then
+  [[ "$MOONPAY_PUBLIC_KEY" == pk_test_* ]] || { echo "V3 accepts only a MoonPay pk_test_ publishable key" >&2; exit 1; }
+  : "${MOONPAY_SECRET_KEY_FILE:?set MOONPAY_SECRET_KEY_FILE when enabling MoonPay URL signing}"
+  : "${MOONPAY_WEBHOOK_KEY_FILE:?set MOONPAY_WEBHOOK_KEY_FILE when enabling MoonPay}"
+  [[ -s "$MOONPAY_SECRET_KEY_FILE" ]] || { echo "MOONPAY_SECRET_KEY_FILE must exist and be non-empty" >&2; exit 1; }
+  [[ -s "$MOONPAY_WEBHOOK_KEY_FILE" ]] || { echo "MOONPAY_WEBHOOK_KEY_FILE must exist and be non-empty" >&2; exit 1; }
+  [[ "$(tr -d '\r\n' < "$MOONPAY_SECRET_KEY_FILE")" == sk_test_* ]] || { echo "MOONPAY_SECRET_KEY_FILE must contain an sk_test_ key" >&2; exit 1; }
+  if ! gcloud secrets describe gcp-x402-v3-preview-moonpay-signing --project="$TARGET_PROJECT_ID" >/dev/null 2>&1; then
+    gcloud secrets create gcp-x402-v3-preview-moonpay-signing --data-file="$MOONPAY_SECRET_KEY_FILE" --replication-policy=automatic --project="$TARGET_PROJECT_ID" >/dev/null
+  fi
+  if ! gcloud secrets describe gcp-x402-v3-preview-moonpay-webhook --project="$TARGET_PROJECT_ID" >/dev/null 2>&1; then
+    gcloud secrets create gcp-x402-v3-preview-moonpay-webhook --data-file="$MOONPAY_WEBHOOK_KEY_FILE" --replication-policy=automatic --project="$TARGET_PROJECT_ID" >/dev/null
+  fi
+  secret_names+=(gcp-x402-v3-preview-moonpay-signing gcp-x402-v3-preview-moonpay-webhook)
+fi
+for name in "${secret_names[@]}"; do
   gcloud secrets add-iam-policy-binding "$name" --project="$TARGET_PROJECT_ID" --member="serviceAccount:${run_sa}" --role=roles/secretmanager.secretAccessor --condition=None --quiet >/dev/null
 done
 echo "v3 preview bootstrap complete: $TARGET_PROJECT_ID"

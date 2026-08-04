@@ -5,10 +5,10 @@
 // MCP registration. Output is written for an agent to read: a human-readable
 // summary on stderr, the actual data (rows / json) on stdout.
 
-import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation, moonPayAvailability, moonPayCheckout } from "./client.js";
 import { config } from "./config.js";
 import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
-import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, listSandboxReceipts, sandboxAccount, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
+import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, sandboxReceiptSummary, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
 import { spawnSync } from "node:child_process";
 
@@ -74,11 +74,20 @@ export async function runCli(argv: string[]): Promise<number> {
     case "checkout": {
       if (!argv[1]) return usageError("checkout <plan-id>");
       const plan = getSandboxPlan(argv[1]); if (!plan) return usageError(`No local sandbox plan found for ${argv[1]}`);
-      if (plan.provider.id !== "simulator") throw new Error("MoonPay test checkout is not configured yet. Set GCP_X402_PAYMENT_PROVIDER=simulator for the safe local rehearsal.");
-      const simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress });
+      const existing = getSandboxReceiptForPlan(plan.planId);
+      if (existing) {
+        const simulation = await v3SimulationStatus(existing.stackId);
+        const availability = await moonPayAvailability();
+        const moonpay = availability.enabled ? await moonPayCheckout(existing.stackId) : undefined;
+        console.log(JSON.stringify({ receipt: existing, simulation, moonpay, reusedReceipt: true, reuseReason: "This plan already has a checkout. Create a new plan to intentionally start another." }, null, 2));
+        return 0;
+      }
+      const simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress, requestId: plan.planId });
       const stackId = String(simulation.stackId);
       const receipt = saveSandboxReceipt({ checkoutId: `checkout-${stackId}`, planId: plan.planId, stackId, createdAt: new Date().toISOString(), dashboardUrl: typeof simulation.dashboardUrl === "string" ? simulation.dashboardUrl : undefined, status: String(simulation.status ?? "checkout"), paymentStatus: String(simulation.paymentStatus ?? "not_authorized"), trace: [{ at: new Date().toISOString(), event: "quote_created", detail: `Plan ${plan.planId} priced at $${plan.quote.expectedChargeUsd.toFixed(2)} maximum simulated settlement.` }, { at: new Date().toISOString(), event: "checkout_opened", detail: "Sandbox checkout created. No card, USDC, or cloud resource was used." }] });
-      console.log(JSON.stringify({ receipt, simulation }, null, 2));
+      const availability = await moonPayAvailability();
+      const moonpay = availability.enabled ? await moonPayCheckout(stackId) : undefined;
+      console.log(JSON.stringify({ receipt, simulation, moonpay }, null, 2));
       return 0;
     }
     case "status":
@@ -91,7 +100,7 @@ export async function runCli(argv: string[]): Promise<number> {
       return 0;
     }
     case "receipts":
-      console.log(JSON.stringify(listSandboxReceipts(), null, 2));
+      console.log(JSON.stringify(listSandboxReceipts().map(sandboxReceiptSummary), null, 2));
       return 0;
     case "codex":
       return launchCodex(argv.slice(1));

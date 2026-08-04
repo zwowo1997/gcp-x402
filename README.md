@@ -41,9 +41,12 @@ PROXY_URL=http://localhost:3000 npx -y github:zwowo1997/gcp-x402 checkout <plan-
 ```
 
 `gcp-x402 codex` launches Codex with the sandbox MCP tools injected for that session;
-it does not modify the user's persistent Codex configuration. `moonpay-test` is an
-adapter boundary only until partner test credentials are configured. MoonPay's published
-test mode uses Ethereum Sepolia test assets, so it cannot fund a Base Sepolia checkout.
+it does not modify the user's persistent Codex configuration. Matching
+`MOONPAY_PUBLIC_KEY=pk_test_...` and Secret-Manager-backed
+`MOONPAY_SECRET_KEY=sk_test_...` credentials on the proxy open MoonPay's signed hosted test checkout
+in a new tab. The CLI discovers this automatically. MoonPay owns its card/Apple Pay/KYC UI and test mode uses
+simulated payments plus Ethereum Sepolia test assets—not Base Sepolia, so it cannot fund an
+x402 checkout or cause GCP provisioning in this beta.
 
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows

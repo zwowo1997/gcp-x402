@@ -10,6 +10,7 @@ import { v3Quote, v3ResourceBreakdown, type V3DurationMinutes, type V3ProductId 
 export interface SandboxAccount { address: string; privateKey: Hex; createdAt: string; network: "base-sepolia"; virtualUsdcBalance: number; mode: "sandbox"; }
 export interface SandboxPlan { planId: string; createdAt: string; intent: string; productId: V3ProductId; durationMinutes: V3DurationMinutes; walletAddress: string; quote: ReturnType<typeof v3Quote>; resources: ReturnType<typeof v3ResourceBreakdown>; provider: PaymentProviderInfo; }
 export interface SandboxReceipt { checkoutId: string; planId: string; stackId: string; createdAt: string; dashboardUrl?: string; status?: string; paymentStatus?: string; trace: Array<{ at: string; event: string; detail: string }>; }
+export type SandboxReceiptSummary = Omit<SandboxReceipt, "dashboardUrl"> & { dashboardUrl?: string };
 
 function ensureDirectory() {
   const directory = dirname(config.sandboxFile);
@@ -48,10 +49,25 @@ export function createSandboxPlan(intent: string): SandboxPlan {
 
 export function getSandboxPlan(planId: string): SandboxPlan | null { return readJson<SandboxPlan[]>(config.sandboxPlansFile, []).find((plan) => plan.planId === planId) ?? null; }
 export function listSandboxReceipts(): SandboxReceipt[] { return readJson<SandboxReceipt[]>(config.sandboxReceiptsFile, []); }
+export function receiptForPlan(receipts: SandboxReceipt[], planId: string): SandboxReceipt | null { return receipts.find((receipt) => receipt.planId === planId) ?? null; }
+export function getSandboxReceiptForPlan(planId: string): SandboxReceipt | null { return receiptForPlan(listSandboxReceipts(), planId); }
 export function saveSandboxReceipt(receipt: SandboxReceipt): SandboxReceipt { const all = listSandboxReceipts(); all.push(receipt); writeJson(config.sandboxReceiptsFile, all); return receipt; }
 export function updateSandboxReceipt(checkoutId: string, update: Partial<Pick<SandboxReceipt, "status" | "paymentStatus" | "dashboardUrl">> & { event?: string; detail?: string }): SandboxReceipt | null {
   const all = listSandboxReceipts(); const receipt = all.find((item) => item.checkoutId === checkoutId); if (!receipt) return null;
-  Object.assign(receipt, update); if (update.event) receipt.trace.push({ at: new Date().toISOString(), event: update.event, detail: update.detail ?? "" });
+  if (update.status !== undefined) receipt.status = update.status;
+  if (update.paymentStatus !== undefined) receipt.paymentStatus = update.paymentStatus;
+  if (update.dashboardUrl !== undefined) receipt.dashboardUrl = update.dashboardUrl;
+  // Remove fields written by beta.3, which accidentally spread trace helper values onto receipts.
+  delete (receipt as SandboxReceipt & { event?: string }).event;
+  delete (receipt as SandboxReceipt & { detail?: string }).detail;
+  if (update.event) receipt.trace.push({ at: new Date().toISOString(), event: update.event, detail: update.detail ?? "" });
   writeJson(config.sandboxReceiptsFile, all); return receipt;
 }
 export function getSandboxReceipt(id: string): SandboxReceipt | null { return listSandboxReceipts().find((item) => item.checkoutId === id || item.stackId === id) ?? null; }
+
+/** Safe for list output: preserve navigation context but remove the bearer session fragment. */
+export function sandboxReceiptSummary(receipt: SandboxReceipt): SandboxReceiptSummary {
+  const { checkoutId, planId, stackId, createdAt, status, paymentStatus, trace } = receipt;
+  const dashboardUrl = receipt.dashboardUrl?.split("#", 1)[0];
+  return { checkoutId, planId, stackId, createdAt, ...(dashboardUrl ? { dashboardUrl } : {}), ...(status ? { status } : {}), ...(paymentStatus ? { paymentStatus } : {}), trace };
+}

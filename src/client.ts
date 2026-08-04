@@ -226,6 +226,8 @@ export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
 export type V3DurationMinutes = 15 | 30 | 60;
 export type V3SimulationAction = "approve" | "fund" | "provision" | "stop" | "resume" | "shutdown" | "cancel";
 export interface V3SimulationResult { stackId: string; dashboardPath: string; dashboardUrl?: string; [key: string]: unknown; }
+export interface MoonPayAvailabilityResult { enabled: boolean; mode: "test"; network: "ethereum-sepolia"; asset: "USDC"; fiatAmountUsd: number; note: string; }
+export interface MoonPayCheckoutResult extends MoonPayAvailabilityResult { provider: "moonpay"; checkoutUrl: string; enabled: true; warning: string; }
 
 /**
  * V3 dry-run only. It deliberately uses ordinary fetch rather than paidFetch:
@@ -245,7 +247,7 @@ function v3DashboardUrl(path: string): string | undefined {
   return dashboard.toString();
 }
 
-export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes; payer?: string }): Promise<V3SimulationResult> {
+export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes; payer?: string; requestId?: string }): Promise<V3SimulationResult> {
   const res = await serviceFetch(new URL("/api/v3/simulate", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -270,6 +272,21 @@ export async function controlV3Simulation(stackId: string, action: V3SimulationA
   if (!res.ok) throw await serviceError(res, "V3 simulation control");
   const result = await res.json() as V3SimulationResult;
   return { ...result, dashboardUrl: typeof result.dashboardPath === "string" ? v3DashboardUrl(result.dashboardPath) : undefined };
+}
+
+/** Open MoonPay's hosted on-ramp; this beta never uses its outcome to provision or settle. */
+export async function moonPayAvailability(): Promise<MoonPayAvailabilityResult> {
+  const res = await serviceFetch(new URL("/api/v3/moonpay", config.proxyUrl));
+  if (!res.ok) throw await serviceError(res, "MoonPay availability");
+  return res.json() as Promise<MoonPayAvailabilityResult>;
+}
+
+export async function moonPayCheckout(stackId: string): Promise<MoonPayCheckoutResult> {
+  const res = await serviceFetch(new URL("/api/v3/moonpay", config.proxyUrl), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ stackId }),
+  });
+  if (!res.ok) throw await serviceError(res, "MoonPay checkout");
+  return res.json() as Promise<MoonPayCheckoutResult>;
 }
 
 export interface ProvisionRequest { resourceId: "vm.small" | "storage.small"; durationMinutes?: number; }

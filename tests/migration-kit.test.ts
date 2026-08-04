@@ -53,9 +53,15 @@ test("v3 release coordinator requires a configuration file, version, and explici
   assert.match(v3Verifier, /legacy_paid_routes=disabled/);
   const previewDeploy = await readFile("scripts/migration/deploy-v3-preview.sh", "utf8");
   assert.match(previewDeploy, /V3_PREVIEW_ONLY=true/);
+  assert.match(previewDeploy, /MOONPAY_PUBLIC_KEY/);
+  assert.match(previewDeploy, /MOONPAY_SECRET_KEY/);
+  assert.match(previewDeploy, /pk_test_/);
   assert.doesNotMatch(previewDeploy, /spanner|firebase|trading-runtime/i);
   const previewBootstrap = await readFile("scripts/migration/bootstrap-v3-preview.sh", "utf8");
   assert.match(previewBootstrap, /v3_simulations/);
+  assert.match(previewBootstrap, /v3_simulation_requests/);
+  assert.match(previewBootstrap, /MOONPAY_WEBHOOK_KEY_FILE/);
+  assert.match(previewBootstrap, /MOONPAY_SECRET_KEY_FILE/);
   assert.doesNotMatch(previewBootstrap, /spanner.googleapis.com|compute.googleapis.com|pubsub.googleapis.com/);
   const middleware = await readFile("proxy/middleware.ts", "utf8");
   assert.match(middleware, /V3_PREVIEW_ONLY/);
