@@ -32,8 +32,8 @@ fi
 if ! gcloud firestore databases describe --database='(default)' --project="$TARGET_PROJECT_ID" >/dev/null 2>&1; then
   gcloud firestore databases create --database='(default)' --location="$TARGET_FIRESTORE_LOCATION" --type=firestore-native --project="$TARGET_PROJECT_ID"
 fi
-gcloud firestore fields ttls update deleteAt --collection-group=v3_simulations --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet >/dev/null
-gcloud firestore fields ttls update deleteAt --collection-group=v3_simulation_requests --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet >/dev/null
+gcloud firestore fields ttls update deleteAt --collection-group=v3_simulations --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet --async >/dev/null
+gcloud firestore fields ttls update deleteAt --collection-group=v3_simulation_requests --database='(default)' --enable-ttl --project="$TARGET_PROJECT_ID" --quiet --async >/dev/null
 
 ensure_random_secret() {
   local name="$1"
