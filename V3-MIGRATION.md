@@ -10,8 +10,10 @@ V2 remains a separate rollback point; do not replace it in place.
 - 15, 30, and 60 minute plans with displayed expected charge and authorization cap.
 - AP2-derived EVM mandate draft with a recursively canonical request hash binding payer,
   request, quote, payee, network, asset, issue/expiry times, and nonce.
-- Simulated embedded wallet, Apple Pay approval, Coinbase sandbox funding, provisioning,
-  runtime controls, and automatic expiry.
+- Project-local test wallet, provider-style payment trace, simulated Apple Pay approval,
+  funding, provisioning, runtime controls, and automatic expiry.
+- A `moonpay-test` adapter boundary. It remains disabled until a partner test account,
+  registered preview origin, client-session endpoint, and verified webhook receiver exist.
 - No Cloud resources, stablecoin transaction, live exchange order, card data, or KYC data.
 
 The beta contract is not a full AP2 Trusted Surface. Do not claim user-signed AP2
@@ -52,7 +54,7 @@ facilitator have passed integration tests.
 
 ## Required production gates (not included in beta)
 
-1. Coinbase CDP project, Embedded Wallet and Onramp credentials stored only in Secret Manager.
+1. A selected embedded-wallet provider and MoonPay partner test/live credentials stored only in Secret Manager.
 2. Jurisdiction, KYC, sanctions, limits, card-network and disclosure review. Never promise
    KYC-free conversion; a hosted provider may request verification.
 3. A real Coinbase sandbox integration with webhook signature verification and idempotent order state.

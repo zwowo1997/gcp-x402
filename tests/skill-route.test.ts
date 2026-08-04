@@ -13,10 +13,17 @@ test("hosted skill advertises the replica origin", () => {
 
 test("dedicated v3 preview skill cannot initiate legacy paid commands", async () => {
   const source = await readFile("skill/gcp-x402-v3-preview/SKILL.md", "utf8");
-  assert.match(source, /directory-specific/);
-  assert.match(source, /agent\/v3-ap2-onramp-sandbox/);
+  assert.match(source, /exact working directory/);
+  assert.match(source, /github:zwowo1997\/gcp-x402/);
   assert.match(source, /No money transferred and no cloud or trading resources were created/);
   assert.doesNotMatch(source, /\n\s*PROXY_URL=.* (wallet|query|provision|trading-deploy)( |\n)/);
+});
+
+test("v3 preview skill leads agents through the sandbox CLI journey", async () => {
+  const source = await readFile("skill/gcp-x402-v3-preview/SKILL.md", "utf8");
+  assert.match(source, /sandbox/);
+  assert.match(source, /setup --sandbox/);
+  assert.match(source, /plan/);
 });
 
 test("hosted legacy guides also advertise the replica origin", () => {
