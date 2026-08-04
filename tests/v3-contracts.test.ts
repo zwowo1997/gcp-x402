@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canonicalJson, createV3MandateDraft, hashMandatePayload, simulateV3Deployment, simulatedV3Telemetry, v3Quote, v3ResourceBreakdown } from "../src/v3-contracts.js";
+import { paymentProviderInfo } from "../src/payment-provider.js";
 
 test("v3 quotes are duration-aware, capped, and charge only the expected final amount", () => {
   assert.deepEqual(v3Quote("trading.paper.ema", 15), {
@@ -10,6 +11,14 @@ test("v3 quotes are duration-aware, capped, and charge only the expected final a
   assert.equal(v3Quote("vm.small", 30).expectedChargeUsd, 0.2);
   assert.equal(v3Quote("storage.small", 60).expectedChargeUsd, 0.17);
   assert.equal(v3Quote("trading.paper.ema", 60).expectedChargeUsd, 0.19);
+});
+
+test("payment provider boundary does not claim Base Sepolia MoonPay support", () => {
+  const moonpay = paymentProviderInfo("moonpay-test");
+  assert.equal(moonpay.checkout, "moonpay-hosted");
+  assert.equal(moonpay.supportsBaseSepolia, false);
+  assert.match(moonpay.note, /not Base Sepolia/i);
+  assert.equal(paymentProviderInfo("anything-else").id, "simulator");
 });
 
 test("v3 paper telemetry is deterministic, visible, and never executable", () => {

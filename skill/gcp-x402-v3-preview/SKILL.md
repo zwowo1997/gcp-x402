@@ -9,41 +9,48 @@ Use only this isolated v3 simulation workflow. Never invoke legacy commands such
 
 This is a realistic interface rehearsal. It does not charge Apple Pay, perform KYC, move USDC, provision tenant resources, subscribe to Hyperliquid, or place an order.
 
-## Unlock in the user's current project
+## Start a safe sandbox in the user's current project
 
-The unlock session is directory-specific. Before giving the command, determine and print the user's exact working directory. Ask them to run this in their interactive terminal, replacing `<CURRENT_PROJECT_DIRECTORY>` with that exact directory:
+Before checkout, determine and print the user's exact working directory. Ask them to initialize the local test wallet there. It creates no real wallet balance, payment, cloud resource, or trade:
 
 ```bash
 cd "<CURRENT_PROJECT_DIRECTORY>"
-PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402#agent/v3-ap2-onramp-sandbox unlock
+npx -y github:zwowo1997/gcp-x402 setup --sandbox
 ```
 
-The private-beta operator gives the password to authorized testers. Never reveal, guess, store, or embed it. After the user confirms unlock, continue in the same directory.
+The command returns the assigned test-only Base Sepolia address and virtual USDC balance. Do not request a private key, card information, KYC information, or a real wallet. The private-beta unlock is needed only when creating the protected checkout.
 
 ## Rehearse the journey
 
-1. Read the simulation catalog:
+1. Turn the user’s intent into exactly one allowlisted plan:
 
    ```bash
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402#agent/v3-ap2-onramp-sandbox v3-catalog
+   npx -y github:zwowo1997/gcp-x402 plan "<USER_INTENT>"
    ```
 
-2. Explain the selected duration, expected simulated settlement, authorization cap, and exact estimated service allocation. Ask once for approval to begin the free rehearsal.
-3. Create exactly one simulation. For the full trading demo:
+2. Explain the selected duration, expected simulated settlement, authorization cap, test wallet address, and exact estimated service allocation. Ask once for approval to begin the free rehearsal.
+3. After approval, unlock from the same exact directory. The private-beta operator gives the password to authorized testers; never reveal, guess, store, or embed it:
 
    ```bash
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402#agent/v3-ap2-onramp-sandbox v3-simulate trading.paper.ema 15
+   cd "<CURRENT_PROJECT_DIRECTORY>"
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 unlock
    ```
 
-4. Return the `dashboardUrl` immediately. Tell the user it shows a simulated embedded wallet, Apple Pay authorization, resource estimates, BTC paper-strategy telemetry, lifecycle controls, and automatic expiry.
-5. Let the user operate the checkout from the dashboard. If they ask the agent to operate it, use only the returned stack ID with:
+4. Create exactly one checkout from the returned `planId`:
 
    ```bash
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402#agent/v3-ap2-onramp-sandbox v3-status <STACK_ID>
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402#agent/v3-ap2-onramp-sandbox v3-control <STACK_ID> <approve|fund|provision|stop|resume|shutdown|cancel>
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 checkout <PLAN_ID>
    ```
 
-Do not create a second simulation to recover a timeout. Query the first stack with `v3-status`. Never ask the user for an EVM address, wallet funding, GCP credentials, card details, or KYC information.
+5. Return the `dashboardUrl` immediately. Tell the user it shows the assigned sandbox wallet, simulated Apple Pay authorization, resource estimates, BTC paper-strategy telemetry, lifecycle controls, automatic expiry, and payment trace.
+6. Let the user operate the checkout from the dashboard. If they ask the agent to inspect it, use only the returned checkout ID with:
+
+   ```bash
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 status <CHECKOUT_ID>
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 debugger <CHECKOUT_ID>
+   ```
+
+Do not create a second checkout to recover a timeout. Query the first checkout with `status`. Never ask the user for an EVM address, wallet funding, GCP credentials, card details, or KYC information.
 
 ## Successful handoff
 

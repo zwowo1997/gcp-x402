@@ -22,9 +22,28 @@ To reproduce the complete service in another GCP project, use the
 
 The v3 work is intentionally isolated from the live v2 payment path. It adds a free
 checkout simulator at `/v3-demo` and `/api/v3/*` for duration-based estimates,
-AP2-derived mandate previews, and a Coinbase sandbox handoff mock. It creates no
-resources and moves no funds. See [V3-MIGRATION.md](./V3-MIGRATION.md) for the
-production gates and independent-project release procedure.
+AP2-derived mandate previews, a project-local sandbox wallet, payment trace, and
+provider adapter boundary. It creates no resources and moves no funds. See
+[V3-MIGRATION.md](./V3-MIGRATION.md) for the production gates and independent-project
+release procedure.
+
+### V3 local sandbox
+
+The pay.sh-style sandbox turns a natural-language request into one constrained GCP
+plan, assigns a local test-only wallet, and opens a protected simulation checkout.
+It is safe to run locally and never sends a transaction:
+
+```bash
+npx -y github:zwowo1997/gcp-x402 setup --sandbox
+npx -y github:zwowo1997/gcp-x402 plan "Build a Hyperliquid BTC paper-trading stack in Tokyo for one hour"
+# Unlock only before checkout, then:
+PROXY_URL=http://localhost:3000 npx -y github:zwowo1997/gcp-x402 checkout <plan-id>
+```
+
+`gcp-x402 codex` launches Codex with the sandbox MCP tools injected for that session;
+it does not modify the user's persistent Codex configuration. `moonpay-test` is an
+adapter boundary only until partner test credentials are configured. MoonPay's published
+test mode uses Ethereum Sepolia test assets, so it cannot fund a Base Sepolia checkout.
 
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows

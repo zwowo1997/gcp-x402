@@ -17,13 +17,14 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const productId = body?.productId;
   const durationMinutes = Number(body?.durationMinutes);
-  if (typeof productId !== "string" || !products.has(productId as V3ProductId) || !isV3Duration(durationMinutes)) {
+  const payer = body?.payer;
+  if (typeof productId !== "string" || !products.has(productId as V3ProductId) || !isV3Duration(durationMinutes) || (payer !== undefined && (typeof payer !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(payer)))) {
     return NextResponse.json({ error: "Expected an allowlisted productId and durationMinutes (15, 30, or 60)." }, { status: 400 });
   }
   try {
     limitV3Simulation(request.headers.get(BETA_SESSION_HEADER));
     const session = request.headers.get(BETA_SESSION_HEADER);
-    const simulation = await saveV3Simulation(simulateV3Deployment({ productId: productId as V3ProductId, durationMinutes, payTo: config.payTo, network: config.network.id, asset: config.network.usdcAddress }), session);
+    const simulation = await saveV3Simulation(simulateV3Deployment({ productId: productId as V3ProductId, durationMinutes, payer: payer as string | undefined, payTo: config.payTo, network: config.network.id, asset: config.network.usdcAddress }), session);
     return NextResponse.json(simulation, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create simulation." }, { status: 400 });

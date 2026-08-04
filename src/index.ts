@@ -8,6 +8,8 @@ import { z } from "zod";
 import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation } from "./client.js";
 import { config } from "./config.js";
 import { runCli } from "./cli.js";
+import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, listSandboxReceipts, sandboxAccount, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
+import { paymentProviderInfo } from "./payment-provider.js";
 
 const server = new McpServer({
   name: "gcp-x402",
@@ -69,6 +71,27 @@ server.registerTool("v3_catalog", { title: "Inspect v3 sandbox payment plans", d
 server.registerTool("v3_simulate_deployment", { title: "Start a no-wallet v3 checkout rehearsal", description: "Create a protected, no-risk Coinbase-style embedded-wallet and Apple Pay simulation. It creates no wallet, payment, cloud resource, or exchange order; return the private dashboard URL to the user.", inputSchema: { productId: z.enum(["trading.paper.ema", "vm.small", "storage.small"]), durationMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]) } }, async ({ productId, durationMinutes }) => ({ content: [{ type: "text", text: JSON.stringify(await simulateV3Deployment({ productId, durationMinutes }), null, 2) }] }));
 server.registerTool("v3_simulation_status", { title: "Inspect a v3 checkout rehearsal", description: "Read a protected simulation’s mandate, payment, resource plan, expiry, and dashboard link. It is simulation-only.", inputSchema: { stackId: z.string() } }, async ({ stackId }) => ({ content: [{ type: "text", text: JSON.stringify(await v3SimulationStatus(stackId), null, 2) }] }));
 server.registerTool("v3_simulation_control", { title: "Advance or control a v3 checkout rehearsal", description: "Simulate explicit approval, sandbox funding, provisioning, stop/resume, shutdown, or cancellation. This never transfers funds or calls GCP.", inputSchema: { stackId: z.string(), action: z.enum(["approve", "fund", "provision", "stop", "resume", "shutdown", "cancel"]) } }, async ({ stackId, action }) => ({ content: [{ type: "text", text: JSON.stringify(await controlV3Simulation(stackId, action), null, 2) }] }));
+
+server.registerTool("sandbox_setup", { title: "Set up a local gcp-x402 sandbox wallet", description: "Create or show a project-local, test-only Base Sepolia wallet with virtual USDC. It never submits a transaction, funds a wallet, or creates cloud infrastructure.", inputSchema: {} }, async () => {
+  const wallet = sandboxAccount();
+  return { content: [{ type: "text", text: JSON.stringify({ mode: "sandbox", wallet: { address: wallet.address, network: wallet.network, virtualUsdcBalance: wallet.virtualUsdcBalance }, provider: paymentProviderInfo(config.paymentProvider), safety: "No real funds or resources are created." }, null, 2) }] };
+});
+server.registerTool("sandbox_catalog", { title: "Browse safe GCP sandbox plans", description: "List the allowlisted GCP plans, price estimates, provider boundary, and sandbox safety notices. Unlock first if the service asks for it.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify({ provider: paymentProviderInfo(config.paymentProvider), catalog: await v3Catalog(), safety: "Simulation-only catalog; no resources can be created." }, null, 2) }] }));
+server.registerTool("sandbox_plan", { title: "Plan GCP infrastructure from a natural-language intent", description: "Turn a request such as a Hyperliquid BTC paper-trading stack, a VM, or storage into one local allowlisted sandbox plan. It does not charge, create a checkout, or provision anything.", inputSchema: { intent: z.string().min(3).max(2_000) } }, async ({ intent }) => ({ content: [{ type: "text", text: JSON.stringify(createSandboxPlan(intent), null, 2) }] }));
+server.registerTool("sandbox_checkout", { title: "Open one protected sandbox checkout", description: "Create one idempotent checkout rehearsal for a local sandbox plan. Requires the private beta session. The supplied sandbox wallet is assigned to the checkout, but no payment or cloud provisioning occurs.", inputSchema: { planId: z.string() } }, async ({ planId }) => {
+  const plan = getSandboxPlan(planId); if (!plan) throw new Error("Sandbox plan not found in this project directory.");
+  if (plan.provider.id !== "simulator") throw new Error("MoonPay test checkout needs partner credentials and is not configured. Use the simulator provider for now.");
+  const simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress });
+  const stackId = String(simulation.stackId);
+  const receipt = saveSandboxReceipt({ checkoutId: `checkout-${stackId}`, planId: plan.planId, stackId, createdAt: new Date().toISOString(), dashboardUrl: typeof simulation.dashboardUrl === "string" ? simulation.dashboardUrl : undefined, status: String(simulation.status ?? "checkout"), paymentStatus: String(simulation.paymentStatus ?? "not_authorized"), trace: [{ at: new Date().toISOString(), event: "quote_created", detail: `Plan ${plan.planId} prepared.` }, { at: new Date().toISOString(), event: "checkout_opened", detail: "No card, USDC, or cloud resource was used." }] });
+  return { content: [{ type: "text", text: JSON.stringify({ receipt, simulation }, null, 2) }] };
+});
+server.registerTool("sandbox_status", { title: "Read a sandbox checkout and payment trace", description: "Read the latest protected checkout simulation state plus the local payment trace. It never starts a new checkout or payment.", inputSchema: { checkoutId: z.string() } }, async ({ checkoutId }) => {
+  const receipt = getSandboxReceipt(checkoutId); if (!receipt) throw new Error("Sandbox receipt not found in this project directory.");
+  const simulation = await v3SimulationStatus(receipt.stackId);
+  const refreshed = updateSandboxReceipt(receipt.checkoutId, { status: String(simulation.status ?? "unknown"), paymentStatus: String(simulation.paymentStatus ?? "unknown"), dashboardUrl: typeof simulation.dashboardUrl === "string" ? simulation.dashboardUrl : receipt.dashboardUrl, event: "status_observed", detail: `Simulation reported ${String(simulation.status ?? "unknown")}.` }) ?? receipt;
+  return { content: [{ type: "text", text: JSON.stringify({ receipt: refreshed, simulation, allReceipts: listSandboxReceipts().length }, null, 2) }] };
+});
 
 server.registerTool(
   "bigquery_query",

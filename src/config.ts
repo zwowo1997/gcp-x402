@@ -37,6 +37,11 @@ export const config = {
   tradingReceiptsFile: join(dirname(resolveWalletFile()), "trading-receipts.json"),
   /** In-flight request IDs survive transport failures so retries cannot pay twice. */
   tradingPendingFile: join(dirname(resolveWalletFile()), "trading-pending.json"),
+  /** Local-only v3 sandbox plans, wallet, receipts, and trace metadata. */
+  sandboxFile: join(dirname(resolveWalletFile()), "sandbox.json"),
+  sandboxPlansFile: join(dirname(resolveWalletFile()), "sandbox-plans.json"),
+  sandboxReceiptsFile: join(dirname(resolveWalletFile()), "sandbox-receipts.json"),
+  paymentProvider: process.env.GCP_X402_PAYMENT_PROVIDER ?? "simulator",
 
   /** Hard ceiling on what a single query may auto-pay, in USD. */
   maxPaymentUsd: Number(process.env.MAX_PAYMENT_USD ?? "1.00"),

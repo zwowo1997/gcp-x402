@@ -245,7 +245,7 @@ function v3DashboardUrl(path: string): string | undefined {
   return dashboard.toString();
 }
 
-export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes }): Promise<V3SimulationResult> {
+export async function simulateV3Deployment(input: { productId: V3ProductId; durationMinutes: V3DurationMinutes; payer?: string }): Promise<V3SimulationResult> {
   const res = await serviceFetch(new URL("/api/v3/simulate", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
