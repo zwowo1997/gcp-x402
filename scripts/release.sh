@@ -31,7 +31,9 @@ commit="$(git -C "$root" rev-parse HEAD)"
 short_commit="$(git -C "$root" rev-parse --short=12 HEAD)"
 manifest="$root/release-manifest.json"
 write_manifest() {
-  node -e 'const fs=require("fs"); const [path,version,commit,project,region]=process.argv.slice(1); fs.writeFileSync(path, JSON.stringify({schemaVersion:2,release:version,sourceCommit:commit,targetProject:project,targetRegion:region,interfaces:{skill:"v3",mcp:"v3",payment:"x402-v2-upto-contract-preview",onramp:"coinbase-sandbox"},realSettlement:false,verification:"not-run",generatedAt:new Date().toISOString()},null,2)+"\n")' "$manifest" "$version" "$commit" "$TARGET_PROJECT_ID" "${TARGET_REGION:-asia-northeast1}"
+  local onramp="simulator"
+  if [[ -n "${MOONPAY_PUBLIC_KEY:-}" ]]; then onramp="moonpay-test-hosted"; fi
+  node -e 'const fs=require("fs"); const [path,version,commit,project,region,onramp]=process.argv.slice(1); fs.writeFileSync(path, JSON.stringify({schemaVersion:2,release:version,sourceCommit:commit,targetProject:project,targetRegion:region,interfaces:{skill:"v3",mcp:"v3",payment:"x402-v2-upto-contract-preview",onramp},realSettlement:false,verification:"not-run",generatedAt:new Date().toISOString()},null,2)+"\n")' "$manifest" "$version" "$commit" "$TARGET_PROJECT_ID" "${TARGET_REGION:-asia-northeast1}" "$onramp"
 }
 finalize_manifest() {
   local phase="$1" revision="${2:-}" proxy_digest="${3:-}" runtime_digest="${4:-}" skill_sha="${5:-}" dashboard_url="${6:-}"

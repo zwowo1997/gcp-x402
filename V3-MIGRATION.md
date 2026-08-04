@@ -12,8 +12,10 @@ V2 remains a separate rollback point; do not replace it in place.
   request, quote, payee, network, asset, issue/expiry times, and nonce.
 - Project-local test wallet, provider-style payment trace, simulated Apple Pay approval,
   funding, provisioning, runtime controls, and automatic expiry.
-- A `moonpay-test` adapter boundary. It remains disabled until a partner test account,
-  registered preview origin, client-session endpoint, and verified webhook receiver exist.
+- An optional `moonpay-test` hosted-URL integration. It needs matching MoonPay `pk_test_` and
+  Secret-Manager-backed `sk_test_` keys, a registered preview origin, and verified webhook receiver.
+  Every URL containing `walletAddress` is signed server-side. It is an Ethereum
+  Sepolia on-ramp UX test only; it does not fund Base Sepolia x402.
 - No Cloud resources, stablecoin transaction, live exchange order, card data, or KYC data.
 
 The beta contract is not a full AP2 Trusted Surface. Do not claim user-signed AP2
@@ -54,7 +56,8 @@ facilitator have passed integration tests.
 
 ## Required production gates (not included in beta)
 
-1. A selected embedded-wallet provider and MoonPay partner test/live credentials stored only in Secret Manager.
+1. A selected embedded-wallet provider; MoonPay test/live keys in Secret Manager; a configured
+   `POST /api/v3/moonpay/webhook` endpoint; and verified idempotent webhook event storage.
 2. Jurisdiction, KYC, sanctions, limits, card-network and disclosure review. Never promise
    KYC-free conversion; a hosted provider may request verification.
 3. A real Coinbase sandbox integration with webhook signature verification and idempotent order state.

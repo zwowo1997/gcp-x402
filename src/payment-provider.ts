@@ -10,16 +10,14 @@ export interface PaymentProviderInfo {
 }
 
 /**
- * A deliberately narrow adapter contract. MoonPay credentials and webhooks are
- * not implemented until a partner test account is available; callers can still
- * surface the exact integration boundary without pretending a test transfer is
- * available on Base Sepolia.
+ * MoonPay hosts its own test checkout. It is deliberately separate from Base
+ * Sepolia x402: MoonPay's published test assets are on Ethereum Sepolia.
  */
 export function paymentProviderInfo(value: string): PaymentProviderInfo {
   if (value === "moonpay-test") return {
     id: "moonpay-test", mode: "external-test", label: "MoonPay test mode",
     checkout: "moonpay-hosted", supportsBaseSepolia: false,
-    note: "MoonPay test mode is pending partner credentials and supports Ethereum Sepolia test assets, not Base Sepolia settlement.",
+    note: "MoonPay test checkout uses simulated payment and Ethereum Sepolia test assets, not Base Sepolia. It cannot fund x402 settlement.",
   };
   return {
     id: "simulator", mode: "local-sandbox", label: "gcp-x402 sandbox",

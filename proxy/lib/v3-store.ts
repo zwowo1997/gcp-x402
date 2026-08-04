@@ -5,10 +5,12 @@ import { simulatedV3Telemetry, type V3Simulation, type V3SimulationStatus } from
 
 const simulations = new Map<string, V3Simulation>();
 const owners = new Map<string, string>();
+const simulationRequests = new Map<string, string>();
 const requestsBySession = new Map<string, number[]>();
 const WINDOW_MS = 60 * 60_000;
 const MAX_NEW_SIMULATIONS_PER_HOUR = 8;
 const COLLECTION = "v3_simulations";
+const REQUEST_COLLECTION = "v3_simulation_requests";
 let firestore: Firestore | undefined;
 
 function copy<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
@@ -17,6 +19,8 @@ function sessionKey(session: string | null): string { return createHash("sha256"
 function useFirestore() { return config.v3SimulationStore === "firestore"; }
 function db() { return firestore ??= new Firestore({ projectId: config.gcpProjectId }); }
 function document(stackId: string) { return db().collection(COLLECTION).doc(stackId); }
+function requestKey(session: string | null, requestId: string) { return createHash("sha256").update(`${sessionKey(session)}:${requestId}`).digest("hex"); }
+function requestDocument(session: string | null, requestId: string) { return db().collection(REQUEST_COLLECTION).doc(requestKey(session, requestId)); }
 
 function expireIfNeeded(simulation: V3Simulation): V3Simulation {
   if (!["shutdown", "expired"].includes(simulation.status) && new Date(simulation.expiresAt).getTime() <= Date.now()) {
@@ -46,6 +50,47 @@ export async function saveV3Simulation(simulation: V3Simulation, session: string
     owners.set(value.stackId, ownerHash);
   }
   return copy(value);
+}
+
+export async function getV3SimulationByRequestId(requestId: string, session: string | null): Promise<V3Simulation | null> {
+  if (useFirestore()) {
+    const request = await requestDocument(session, requestId).get();
+    const stackId = request.get("stackId");
+    return typeof stackId === "string" ? getV3Simulation(stackId, session) : null;
+  }
+  const stackId = simulationRequests.get(requestKey(session, requestId));
+  return stackId ? getV3Simulation(stackId, session) : null;
+}
+
+export async function saveV3SimulationOnce(simulation: V3Simulation, session: string | null, requestId: string): Promise<{ simulation: V3Simulation; reused: boolean }> {
+  const value = copy(simulation);
+  const ownerHash = sessionKey(session);
+  const expires = Timestamp.fromDate(new Date(new Date(value.expiresAt).getTime() + WINDOW_MS));
+  if (useFirestore()) {
+    return db().runTransaction(async (transaction) => {
+      const requestRef = requestDocument(session, requestId);
+      const request = await transaction.get(requestRef);
+      const existingStackId = request.get("stackId");
+      if (typeof existingStackId === "string") {
+        const existingRef = document(existingStackId);
+        const existing = await transaction.get(existingRef);
+        if (existing.exists && existing.get("ownerHash") === ownerHash) return { simulation: copy(existing.get("simulation") as V3Simulation), reused: true };
+      }
+      transaction.set(document(value.stackId), { simulation: value, ownerHash, deleteAt: expires });
+      transaction.set(requestRef, { stackId: value.stackId, ownerHash, deleteAt: expires });
+      return { simulation: copy(value), reused: false };
+    });
+  }
+  const key = requestKey(session, requestId);
+  const existingStackId = simulationRequests.get(key);
+  if (existingStackId) {
+    const existing = await getV3Simulation(existingStackId, session);
+    if (existing) return { simulation: existing, reused: true };
+  }
+  simulations.set(value.stackId, value);
+  owners.set(value.stackId, ownerHash);
+  simulationRequests.set(key, value.stackId);
+  return { simulation: copy(value), reused: false };
 }
 
 export async function getV3Simulation(stackId: string, session: string | null): Promise<V3Simulation | null> {

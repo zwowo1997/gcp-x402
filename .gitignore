@@ -11,3 +11,5 @@ dist/
 *.log
 .gcp-x402/
 dashboard/firebase.migration.generated.json
+# Local payment-provider credentials (never commit)
+moonpay_keys.rtf

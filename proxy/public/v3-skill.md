@@ -7,7 +7,7 @@ description: Rehearse a private-beta, no-wallet checkout for temporary GCP infra
 
 Use only this isolated v3 simulation workflow. Never invoke legacy commands such as `wallet`, `query`, `provision`, `trading-deploy`, or any x402 payment flow from this skill.
 
-This is a realistic interface rehearsal. It does not charge Apple Pay, perform KYC, move USDC, provision tenant resources, subscribe to Hyperliquid, or place an order.
+This is a realistic interface rehearsal. It does not provision tenant resources, subscribe to Hyperliquid, or place an order. If the operator has enabled `moonpay-test`, the hosted MoonPay test UI may simulate KYC and payment and deliver an Ethereum Sepolia test asset; it still cannot settle Base Sepolia x402 or create cloud resources.
 
 ## Start a safe sandbox in the user's current project
 
@@ -42,7 +42,7 @@ The command returns the assigned test-only Base Sepolia address and virtual USDC
    PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 checkout <PLAN_ID>
    ```
 
-5. Return the `dashboardUrl` immediately. Tell the user it shows the assigned sandbox wallet, simulated Apple Pay authorization, resource estimates, BTC paper-strategy telemetry, lifecycle controls, automatic expiry, and payment trace.
+5. Return the `dashboardUrl` immediately. If the response includes `moonpay.checkoutUrl`, give it to the user as a separate **MoonPay test checkout** link. MoonPay owns the payment UI; never collect card, KYC, or wallet credentials. State that it targets Ethereum Sepolia test assets and does not fund Base Sepolia or provision GCP.
 6. Let the user operate the checkout from the dashboard. If they ask the agent to inspect it, use only the returned checkout ID with:
 
    ```bash
