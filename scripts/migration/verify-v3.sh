@@ -7,16 +7,28 @@ for command_name in curl gcloud jq openssl; do command -v "$command_name" >/dev/
 TARGET_REGION="${TARGET_REGION:-asia-northeast1}"
 SERVICE_NAME="${SERVICE_NAME:-gcp-x402-v3-preview}"
 SERVICE_URL="${SERVICE_URL:-$(gcloud run services describe "$SERVICE_NAME" --region="$TARGET_REGION" --project="$TARGET_PROJECT_ID" --format='value(status.url)')}"
+V2_SERVICE_NAME="${V2_SERVICE_NAME:-gcp-x402-tokyo}"
+project_number="$(gcloud projects describe "$TARGET_PROJECT_ID" --format='value(projectNumber)')"
+V2_SERVICE_URL="${V2_SERVICE_URL:-https://${V2_SERVICE_NAME}-${project_number}.${TARGET_REGION}.run.app}"
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 curl -fsSL "$SERVICE_URL/skill" -o "$work_dir/skill.md"
 grep -q 'setup --sandbox' "$work_dir/skill.md"
-grep -q 'checkout <PLAN_ID>' "$work_dir/skill.md"
-grep -qi 'never ask the user for an EVM address' "$work_dir/skill.md"
+grep -q 'topup moonpay <PLAN_ID>' "$work_dir/skill.md"
+grep -q 'Testnet USDC' "$work_dir/skill.md"
+grep -q 'Real-money on-ramp showcase' "$work_dir/skill.md"
+grep -q 'trading-deploy' "$work_dir/skill.md"
 grep -q 'github:zwowo1997/gcp-x402' "$work_dir/skill.md"
-if grep -Eq 'npx .* (trading-deploy|provision|wallet|query)( |$)' "$work_dir/skill.md"; then
-  echo "preview skill contains a forbidden paid command" >&2
+
+grep -q "PROXY_URL=${V2_SERVICE_URL}.* trading-deploy" "$work_dir/skill.md"
+grep -q "PROXY_URL=${SERVICE_URL}.* topup moonpay" "$work_dir/skill.md"
+if grep -Eq "PROXY_URL=${SERVICE_URL}.* (trading-deploy|provision|wallet|query)( |$)" "$work_dir/skill.md"; then
+  echo "preview service origin is attached to a paid/testnet command" >&2
+  exit 1
+fi
+if grep -Eq "PROXY_URL=${V2_SERVICE_URL}.* topup moonpay( |$)" "$work_dir/skill.md"; then
+  echo "v2 service origin is attached to the MoonPay showcase" >&2
   exit 1
 fi
 
@@ -72,3 +84,4 @@ echo "legacy_paid_routes=disabled"
 echo "state_store=firestore_verified"
 echo "request_idempotency=verified"
 echo "moonpay_test_mode=$(jq -r '.enabled' "$work_dir/moonpay.json")"
+echo "payment_route_separation=verified"

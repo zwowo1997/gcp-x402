@@ -6,16 +6,20 @@ V2 remains a separate rollback point; do not replace it in place.
 
 ## V3 scope
 
-- Separate `/api/v3/*` simulation surface and `/v3-demo` checkout preview.
+- Separate `/api/v3/*` simulation surface and `/v3-demo` operations preview.
 - 15, 30, and 60 minute plans with displayed expected charge and authorization cap.
 - AP2-derived EVM mandate draft with a recursively canonical request hash binding payer,
   request, quote, payee, network, asset, issue/expiry times, and nonce.
-- Project-local test wallet, provider-style payment trace, simulated Apple Pay approval,
-  funding, provisioning, runtime controls, and automatic expiry.
+- Project-local test wallet, deterministic paper telemetry, runtime controls, and automatic expiry.
 - An optional `moonpay-test` hosted-URL integration. It needs matching MoonPay `pk_test_` and
   Secret-Manager-backed `sk_test_` keys, a registered preview origin, and verified webhook receiver.
-  Every URL containing `walletAddress` is signed server-side. It is an Ethereum
-  Sepolia on-ramp UX test only; it does not fund Base Sepolia x402.
+  Every URL containing `walletAddress` is signed server-side. The CLI renders a top-up
+  summary, opens that hosted sandbox/login page, and then stops. It does not observe a
+  payment outcome or initiate provisioning. It is an Ethereum Sepolia on-ramp UX test
+  only; it does not fund Base Sepolia x402.
+- The published skill offers the existing v2 Base Sepolia x402 workflow as a separate
+  Testnet USDC choice. Paid/testnet commands must name the v2 service explicitly; MoonPay
+  showcase commands must name the v3 service explicitly.
 - No Cloud resources, stablecoin transaction, live exchange order, card data, or KYC data.
 
 The beta contract is not a full AP2 Trusted Surface. Do not claim user-signed AP2
@@ -82,8 +86,9 @@ deployment/verification. Do not commit target project identifiers into a public 
 2. Push the v3 branch, open a PR, and tag an immutable preview commit after review.
 3. Deploy v3 only to the separate `gcp-x402-v3-preview` Cloud Run service, with the beta password and
    rate limit still enabled.
-4. Distribute that preview service’s dynamically rendered `/skill` URL—not the v2 URL—and
-   tell agents that full-stack requests begin with a free v3 rehearsal.
+4. Distribute the preview service’s dynamically rendered `/skill` URL. The skill asks
+   users to choose either the v2 Base Sepolia end-to-end test or the v3 MoonPay hosted-UI
+   showcase, and keeps their service origins explicit and separate.
 5. Promote only after `verify-v3.sh`, mobile/visual QA, and a human approval. A production
    onramp/x402 implementation is still blocked by the gates above.
 

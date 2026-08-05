@@ -11,6 +11,7 @@ import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
 import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, sandboxReceiptSummary, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
 import { spawnSync } from "node:child_process";
+import { openExternalUrl, renderMoonPayTopup } from "./topup.js";
 
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
 
@@ -44,6 +45,7 @@ Commands:
   sandbox catalog        Browse the safe GCP sandbox catalog and price plans.
   plan "<intent>"        Turn a natural-language request into one allowlisted sandbox plan.
   checkout <plan-id>     Create one protected checkout from a sandbox plan (requires unlock).
+  topup moonpay <plan-id> Open the MoonPay hosted sandbox showcase, then stop.
   status <checkout-id>   Show the checkout, payment trace, and simulated infrastructure state.
   receipts               List local sandbox checkout receipts without secrets.
   debugger <checkout-id> Print the trace and dashboard URL for a sandbox checkout.
@@ -88,6 +90,32 @@ export async function runCli(argv: string[]): Promise<number> {
       const availability = await moonPayAvailability();
       const moonpay = availability.enabled ? await moonPayCheckout(stackId) : undefined;
       console.log(JSON.stringify({ receipt, simulation, moonpay }, null, 2));
+      return 0;
+    }
+    case "topup": {
+      if (argv[1] !== "moonpay" || !argv[2]) return usageError("topup moonpay <plan-id>");
+      const plan = getSandboxPlan(argv[2]); if (!plan) return usageError(`No local sandbox plan found for ${argv[2]}`);
+      const existing = getSandboxReceiptForPlan(plan.planId);
+      let simulation;
+      if (existing) simulation = await v3SimulationStatus(existing.stackId);
+      else {
+        simulation = await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress, requestId: plan.planId });
+        const stackId = String(simulation.stackId);
+        saveSandboxReceipt({ checkoutId: `checkout-${stackId}`, planId: plan.planId, stackId, createdAt: new Date().toISOString(), status: String(simulation.status ?? "checkout"), paymentStatus: String(simulation.paymentStatus ?? "not_authorized"), trace: [{ at: new Date().toISOString(), event: "moonpay_showcase_created", detail: "MoonPay sandbox showcase prepared; no payment or infrastructure action was started." }] });
+      }
+      const availability = await moonPayAvailability();
+      if (!availability.enabled) throw new Error(availability.note);
+      const moonpay = await moonPayCheckout(String(simulation.stackId));
+      const view = { walletAddress: plan.walletAddress, fiatAmountUsd: moonpay.fiatAmountUsd, asset: moonpay.asset, network: moonpay.network, checkoutUrl: moonpay.checkoutUrl };
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        console.log(JSON.stringify({ mode: "moonpay-sandbox-showcase", ...view, stopAfterRedirect: true, safety: "No payment result is consumed and no GCP resource or trade can follow." }, null, 2));
+        return 0;
+      }
+      console.log(renderMoonPayTopup(view));
+      process.stderr.write("\nPress Enter to open MoonPay sandbox, or Ctrl-C to cancel. ");
+      await waitForEnter();
+      openExternalUrl(moonpay.checkoutUrl);
+      console.log("\nMoonPay sandbox opened. The gcp-x402 showcase stops here.");
       return 0;
     }
     case "status":
@@ -281,6 +309,20 @@ async function readHiddenPassword(): Promise<string> {
     input.setRawMode(true);
     input.resume();
     input.on("data", onData);
+  });
+}
+
+async function waitForEnter(): Promise<void> {
+  if (!process.stdin.isTTY) throw new Error("Run the MoonPay showcase in an interactive terminal.");
+  await new Promise<void>((resolve, reject) => {
+    const input = process.stdin;
+    const onData = (chunk: Buffer | string) => {
+      const value = String(chunk);
+      if (value.includes("\u0003")) { cleanup(); reject(new Error("MoonPay showcase cancelled.")); }
+      else if (value.includes("\r") || value.includes("\n")) { cleanup(); resolve(); }
+    };
+    const cleanup = () => { input.off("data", onData); input.pause(); };
+    input.resume(); input.on("data", onData);
   });
 }
 

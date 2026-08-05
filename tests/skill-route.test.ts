@@ -18,12 +18,14 @@ test("hosted skill prefers PUBLIC_BASE_URL over the container listener", () => {
   );
 });
 
-test("dedicated v3 preview skill cannot initiate legacy paid commands", async () => {
+test("dedicated preview skill separates MoonPay showcase from V2 testnet payment", async () => {
   const source = await readFile("skill/gcp-x402-v3-preview/SKILL.md", "utf8");
   assert.match(source, /exact working directory/);
   assert.match(source, /github:zwowo1997\/gcp-x402/);
-  assert.match(source, /No money transferred and no cloud or trading resources were created/);
-  assert.doesNotMatch(source, /\n\s*PROXY_URL=.* (wallet|query|provision|trading-deploy)( |\n)/);
+  assert.match(source, /testnet USDC/i);
+  assert.match(source, /real-money on-ramp showcase/i);
+  assert.match(source, /topup moonpay/);
+  assert.match(source, /trading-deploy/);
 });
 
 test("v3 preview skill leads agents through the sandbox CLI journey", async () => {
@@ -31,6 +33,14 @@ test("v3 preview skill leads agents through the sandbox CLI journey", async () =
   assert.match(source, /sandbox/);
   assert.match(source, /setup --sandbox/);
   assert.match(source, /plan/);
+});
+
+test("preview skill keeps the V2 testnet service separate from its rendered V3 origin", async () => {
+  const source = await readFile("skill/gcp-x402-v3-preview/SKILL.md", "utf8");
+  const preview = "https://preview.example.run.app";
+  const rendered = renderSkillForOrigin(source, preview);
+  assert.match(rendered, new RegExp(`${preview.replaceAll(".", "\\.")}.*topup moonpay`));
+  assert.match(rendered, /https:\/\/gcp-x402-tokyo-837831206506\.asia-northeast1\.run\.app.*trading-deploy/);
 });
 
 test("hosted legacy guides also advertise the replica origin", () => {
