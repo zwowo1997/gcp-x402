@@ -4,6 +4,12 @@ const knownServiceUrls = [
 ];
 const previewPlaceholder = "https://gcp-x402-v3-preview.example.invalid";
 
+/** Both the simulation-only preview and the gated V3 testnet service publish
+ * the native V3 skill. The legacy skill is reserved for the V2 service. */
+export function shouldServeV3Skill(flags: { v3PreviewOnly: boolean; v3TestnetDeploymentEnabled: boolean }): boolean {
+  return flags.v3PreviewOnly || flags.v3TestnetDeploymentEnabled;
+}
+
 export function renderSkillForOrigin(markdown: string, origin: string): string {
   const normalizedOrigin = origin.replace(/\/$/, "");
   if (/^name:\s*gcp-x402-v3-preview\s*$/m.test(markdown)) {
