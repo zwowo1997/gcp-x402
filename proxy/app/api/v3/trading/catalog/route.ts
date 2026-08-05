@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
       const quote = v3Quote("trading.paper.ema", durationMinutes);
       return { durationMinutes, quote, resources: v3ResourceBreakdown(quote) };
     }),
-    deploymentEnabled: false,
+    deploymentEnabled: config.v3TestnetDeploymentEnabled,
     operatorHardCeilingUsd: config.maxGcpCostPerProvisionUsd,
-    safety: "Quote preview only in this increment. No payment, GCP resource, or trade can be created from this endpoint.",
+    safety: config.v3TestnetDeploymentEnabled ? "Base Sepolia testnet deployment is enabled; every stack remains paper-only." : "Quote preview only. No payment, GCP resource, or trade can be created while deployment is disabled.",
   }, { headers: { "cache-control": "no-store" } });
 }

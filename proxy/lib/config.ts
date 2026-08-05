@@ -31,6 +31,8 @@ export const config = {
   testMode: process.env.TEST_MODE !== "false",
   /** V3 is sandbox-only until an audited x402-v2 facilitator and Coinbase adapter exist. */
   v3RealSettlementEnabled: process.env.V3_REAL_SETTLEMENT_ENABLED === "true",
+  /** Separately gated Base Sepolia exact-quote deployment path. Off in every preview deployment. */
+  v3TestnetDeploymentEnabled: process.env.V3_TESTNET_DEPLOY_ENABLED === "true",
   /** Preview images reject every legacy paid API route at middleware level. */
   v3PreviewOnly: process.env.V3_PREVIEW_ONLY === "true",
   v3SimulationStore: choice("V3_SIMULATION_STORE", ["memory", "firestore"] as const, process.env.NODE_ENV === "production" ? "firestore" : "memory"),

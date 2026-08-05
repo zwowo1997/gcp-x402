@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       strategy: body.strategy,
       requestId: body.requestId,
     });
-    return NextResponse.json({ quote: payload, quoteToken: signV3TradingQuote(payload, config.quoteSecret), deploymentEnabled: false }, { headers: { "cache-control": "no-store" } });
+    return NextResponse.json({ quote: payload, quoteToken: signV3TradingQuote(payload, config.quoteSecret), deploymentEnabled: config.v3TestnetDeploymentEnabled }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
