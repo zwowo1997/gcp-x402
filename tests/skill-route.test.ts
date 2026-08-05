@@ -61,3 +61,11 @@ test("hosted legacy guides also advertise the replica origin", () => {
   const replica = "https://replica.example.run.app";
   assert.equal(renderSkillForOrigin(`${legacy}/skill`, replica), `${replica}/skill`);
 });
+
+test("legacy skill cannot claim V3 Hyperliquid or MoonPay requests", async () => {
+  const source = await readFile("skill/bigquery-public-data/SKILL.md", "utf8");
+  const frontmatter = source.split("---")[1] ?? "";
+  assert.match(frontmatter, /Do not use this legacy skill for Hyperliquid/);
+  assert.match(source, /use `gcp-x402-v3-preview`/);
+  assert.match(source, /Do not run the legacy `trading-\*` commands as a fallback/);
+});

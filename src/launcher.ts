@@ -20,6 +20,12 @@ export const NATIVE_MCP_TOOLS = [
   "sandbox_status",
 ] as const;
 
+// Keep the V3 journey deterministic even when an older, globally installed
+// gcp-x402 skill is still discoverable by Codex. Tool allowlisting prevents a
+// legacy MCP call, while these session instructions prevent shell-command
+// fallback and require payment-route selection before any wallet or quote call.
+export const NATIVE_SESSION_INSTRUCTIONS = `This is a gcp-x402 V3 native MCP session. For every Hyperliquid or paper-trading deployment request, use only the gcp_x402 MCP tools and never run legacy gcp-x402 trading shell commands. Before calling wallet_info, v3_trading_catalog, or v3_trading_quote, ask which payment path the user wants unless their request already selects one: (1) Base Sepolia testnet USDC for an end-to-end temporary deployment, or (2) MoonPay sandbox for a hosted card/Apple Pay showcase that stops before payment and deployment. Use moonpay_showcase only after MoonPay is selected. Use v3_trading_quote only after testnet USDC is selected. A clear affirmative to the one immediately preceding fresh quote is sufficient approval; never require the user to repeat quote details.`;
+
 export function nativeStateDirectory(env: NodeJS.ProcessEnv = process.env): string {
   return resolve(env.GCP_X402_HOME || join(homedir(), ".gcp-x402"));
 }
@@ -43,6 +49,7 @@ export function nativeSessionEnvironment(env: NodeJS.ProcessEnv = process.env): 
 
 export function codexLaunchArguments(executable: string, args: string[], proxyUrl?: string): string[] {
   const config = [
+    "-c", `developer_instructions=${JSON.stringify(NATIVE_SESSION_INSTRUCTIONS)}`,
     "-c", `mcp_servers.gcp_x402.command=${JSON.stringify(process.execPath)}`,
     "-c", `mcp_servers.gcp_x402.args=${JSON.stringify([executable])}`,
     "-c", `mcp_servers.gcp_x402.enabled_tools=${JSON.stringify(NATIVE_MCP_TOOLS)}`,
