@@ -54,6 +54,8 @@ MoonPay test assets are on Ethereum Sepolia and do not fund Base Sepolia.
 
 ## Safety
 
+Blank CLI or MCP output is never success. On DNS, network, or timeout failure, request the coding environment's outbound-network permission and rerun only the same idempotent operation. Never inspect a wallet file as a substitute for a live balance check or create a new deployment request to recover connectivity.
+
 - Never collect card details, KYC data, seed phrases, or private keys.
 - Every deployed strategy is paper-only; no Hyperliquid account or live/testnet exchange order is used.
 - Require fresh exact-price approval before any paid tool.
