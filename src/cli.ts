@@ -9,7 +9,7 @@ import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionR
 import { config } from "./config.js";
 import { betaSessionToken } from "./beta-session.js";
 import { dirname } from "node:path";
-import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
+import { getTradingReceipt, listTradingReceipts, publicTradingReceipt } from "./trading-receipt.js";
 import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, sandboxReceiptSummary, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
 import { spawnSync } from "node:child_process";
@@ -239,7 +239,7 @@ export async function runCli(argv: string[]): Promise<number> {
       return 0;
     }
     case "trading-receipts":
-      console.log(JSON.stringify(listTradingReceipts().map(({ capability: _capability, ...receipt }) => receipt), null, 2));
+      console.log(JSON.stringify(listTradingReceipts().map(publicTradingReceipt), null, 2));
       return 0;
     case "trading-control":
       if (!argv[1] || !argv[2] || !argv[3]) return usageError("trading-control <stack-id> <capability> <start|stop|resume|shutdown>");

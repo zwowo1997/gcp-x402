@@ -286,15 +286,17 @@ export async function quoteV3PaperTrading(input: { durationMinutes: V3DurationMi
   return res.json() as Promise<V3TradingQuoteResult>;
 }
 
-export async function deployV3PaperTrading(input: { quoteToken: string; quoteId: string; durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number; strategy?: PaperTradingConfig }): Promise<V3TradingDeployment> {
-  const requestInput = { version: "v3", quoteId: input.quoteId, durationMinutes: input.durationMinutes, strategy: input.strategy ?? {} };
-  const existing = recentTradingReceipt(requestInput);
-  if (existing && isV3TradingReceipt(existing)) return { ...existing, reusedReceipt: true, reuseReason: "Returned the recent matching V3 receipt instead of creating another paid stack." };
-  const requestId = pendingTradingRequestId(requestInput, randomUUID);
+export async function deployV3PaperTrading(input: { quoteToken: string; quoteId: string; durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number }): Promise<V3TradingDeployment> {
   const quoted = decodeV3TradingQuoteToken(input.quoteToken);
   if (!quoted || quoted.quoteId !== input.quoteId || quoted.quote.durationMinutes !== input.durationMinutes) throw new Error("Deployment must use the exact signed quote shown to the user.");
   const expected = quoted.quote.expectedChargeUsd;
   if (!Number.isFinite(input.approvedExpectedChargeUsd) || Math.abs(input.approvedExpectedChargeUsd - expected) > 0.000001) throw new Error(`Fresh approval must exactly match quote ${input.quoteId} ($${expected.toFixed(2)} testnet USDC).`);
+  // The signed quote, not a second set of deploy parameters, is the complete
+  // source of truth for idempotency and strategy configuration.
+  const requestInput = { version: "v3", quoteId: quoted.quoteId, durationMinutes: quoted.quote.durationMinutes, strategy: quoted.strategy };
+  const existing = recentTradingReceipt(requestInput);
+  if (existing && isV3TradingReceipt(existing)) return { ...existing, reusedReceipt: true, reuseReason: "Returned the recent matching V3 receipt instead of creating another paid stack." };
+  const requestId = pendingTradingRequestId(requestInput, randomUUID);
   const res = await paidFetch(new URL("/api/v3/trading/deploy", config.proxyUrl), {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteToken: input.quoteToken }),
   });

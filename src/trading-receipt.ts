@@ -25,6 +25,19 @@ export interface TradingReceipt {
   savedAt: string;
 }
 
+/**
+ * A receipt safe to show in an agent transcript or a CLI listing. Dashboard
+ * fragments carry the capability and beta session, so removing only the
+ * separate capability field is not sufficient.
+ */
+export type PublicTradingReceipt = Omit<TradingReceipt, "capability" | "dashboardUrl"> & { dashboardUrl?: string };
+
+export function publicTradingReceipt(receipt: TradingReceipt): PublicTradingReceipt {
+  const { capability: _capability, dashboardUrl, ...publicReceipt } = receipt;
+  const safeDashboardUrl = dashboardUrl?.split("#", 1)[0];
+  return { ...publicReceipt, ...(safeDashboardUrl ? { dashboardUrl: safeDashboardUrl } : {}) };
+}
+
 export function isV3TradingReceipt(receipt: TradingReceipt): receipt is TradingReceipt & {
   quoteId: string;
   durationMinutes: 15 | 30 | 60;

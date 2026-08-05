@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, type TradingReceipt } from "../src/trading-receipt.js";
+import { clearPendingTradingRequest, pendingTradingRequestId, publicTradingReceipt, recentTradingReceipt, type TradingReceipt } from "../src/trading-receipt.js";
 
 test("paid deployment retries reuse their pending request ID", () => {
   const directory = mkdtempSync(join(tmpdir(), "gcp-x402-pending-"));
@@ -38,4 +38,19 @@ test("a recent matching success blocks accidental handoff redeployment", () => {
   };
   writeFileSync(file, JSON.stringify([receipt]));
   assert.equal(recentTradingReceipt({}, 30 * 60_000, file)?.stackId, "stack-1");
+});
+
+test("public receipt views never expose capabilities or dashboard fragment secrets", () => {
+  const receipt: TradingReceipt = {
+    stackId: "stack-1", mode: "paper", region: "asia-northeast1",
+    expiresAt: "2099-01-01T00:00:00.000Z", maxPriceUsd: 0.15,
+    capability: "capability-secret", paperOnly: true,
+    dashboardUrl: "https://dashboard.example/strategy/stack-1#capability=capability-secret&session=session-secret",
+    savedAt: "2026-08-04T00:00:00.000Z",
+  };
+  const publicReceipt = publicTradingReceipt(receipt);
+  assert.equal(publicReceipt.dashboardUrl, "https://dashboard.example/strategy/stack-1");
+  assert.ok(!JSON.stringify(publicReceipt).includes("capability-secret"));
+  assert.ok(!JSON.stringify(publicReceipt).includes("session-secret"));
+  assert.ok(!("capability" in publicReceipt));
 });
