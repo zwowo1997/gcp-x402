@@ -1,16 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canonicalJson, createV3MandateDraft, hashMandatePayload, simulateV3Deployment, simulatedV3Telemetry, v3Quote, v3ResourceBreakdown } from "../src/v3-contracts.js";
+import { canonicalJson, createV3MandateDraft, createV3TradingQuotePayload, hashMandatePayload, normalizeV3PaperStrategy, simulateV3Deployment, simulatedV3Telemetry, v3Quote, v3ResourceBreakdown, verifyV3TradingQuotePayload } from "../src/v3-contracts.js";
 import { paymentProviderInfo } from "../src/payment-provider.js";
 
 test("v3 quotes are duration-aware, capped, and charge only the expected final amount", () => {
   assert.deepEqual(v3Quote("trading.paper.ema", 15), {
-    productId: "trading.paper.ema", durationMinutes: 15, estimatedGcpUsd: 0.028521, serviceFeeUsd: 0.061479,
-    expectedChargeUsd: 0.09, authorizationCapUsd: 1.25, currency: "USDC", settlement: "provision-then-settle", unusedAuthorization: "never-transferred",
+    productId: "trading.paper.ema", durationMinutes: 15, estimatedGcpUsd: 0.029271, serviceFeeUsd: 0.060729,
+    expectedChargeUsd: 0.09, authorizationCapUsd: 0.15, currency: "USDC", settlement: "provision-then-settle", unusedAuthorization: "never-transferred",
   });
   assert.equal(v3Quote("vm.small", 30).expectedChargeUsd, 0.2);
   assert.equal(v3Quote("storage.small", 60).expectedChargeUsd, 0.17);
   assert.equal(v3Quote("trading.paper.ema", 60).expectedChargeUsd, 0.19);
+});
+
+test("real V3 trading quote binds duration, strategy, payer, resources, and expiry", () => {
+  const now = new Date("2026-08-05T12:00:00.000Z");
+  const payload = createV3TradingQuotePayload({
+    durationMinutes: 30,
+    payer: "0x1111111111111111111111111111111111111111",
+    payTo: "0x2222222222222222222222222222222222222222",
+    asset: "0x3333333333333333333333333333333333333333",
+    strategy: { fastEma: 7, slowEma: 25 },
+    requestId: "request-1",
+    quoteId: "quote-1",
+    now,
+  });
+  assert.equal(payload.quote.durationMinutes, 30);
+  assert.equal(payload.quote.expectedChargeUsd, 0.12);
+  assert.equal(payload.quote.authorizationCapUsd, 0.25);
+  assert.equal(payload.strategy.fastEma, 7);
+  assert.equal(payload.expiresAt, "2026-08-05T12:10:00.000Z");
+  assert.equal(payload.resources.reduce((sum, item) => sum + item.estimatedUsd, 0), payload.quote.estimatedGcpUsd);
+  assert.equal(verifyV3TradingQuotePayload(payload, new Date("2026-08-05T12:09:59.000Z")), true);
+  assert.equal(verifyV3TradingQuotePayload(payload, new Date("2026-08-05T12:10:00.000Z")), false);
+  assert.equal(verifyV3TradingQuotePayload({ ...payload, payer: "0x4444444444444444444444444444444444444444" }, now), false);
+});
+
+test("real V3 strategy normalization rejects unsafe or inconsistent limits", () => {
+  assert.equal(normalizeV3PaperStrategy().symbol, "BTC");
+  assert.throws(() => normalizeV3PaperStrategy({ fastEma: 21, slowEma: 9 }), /slowEma/);
+  assert.throws(() => normalizeV3PaperStrategy({ maxOrderNotionalUsd: 3_000, maxPositionNotionalUsd: 2_000 }), /cannot exceed/);
 });
 
 test("payment provider boundary does not claim Base Sepolia MoonPay support", () => {

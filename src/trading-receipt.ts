@@ -14,9 +14,41 @@ export interface TradingReceipt {
   resources?: Record<string, string>;
   costBreakdown?: Array<Record<string, unknown>>;
   costSummary?: Record<string, unknown>;
+  quoteId?: string;
+  durationMinutes?: 15 | 30 | 60;
+  expectedChargeUsd?: number;
+  authorizationCapUsd?: number;
+  settledAmountUsd?: number;
+  unusedAuthorizationUsd?: number;
   requestId?: string;
   configJson?: string;
   savedAt: string;
+}
+
+/**
+ * A receipt safe to show in an agent transcript or a CLI listing. Dashboard
+ * fragments carry the capability and beta session, so removing only the
+ * separate capability field is not sufficient.
+ */
+export type PublicTradingReceipt = Omit<TradingReceipt, "capability" | "dashboardUrl"> & { dashboardUrl?: string };
+
+export function publicTradingReceipt(receipt: TradingReceipt): PublicTradingReceipt {
+  const { capability: _capability, dashboardUrl, ...publicReceipt } = receipt;
+  const safeDashboardUrl = dashboardUrl?.split("#", 1)[0];
+  return { ...publicReceipt, ...(safeDashboardUrl ? { dashboardUrl: safeDashboardUrl } : {}) };
+}
+
+export function isV3TradingReceipt(receipt: TradingReceipt): receipt is TradingReceipt & {
+  quoteId: string;
+  durationMinutes: 15 | 30 | 60;
+  expectedChargeUsd: number;
+  authorizationCapUsd: number;
+  settledAmountUsd: number;
+  unusedAuthorizationUsd: number;
+} {
+  return typeof receipt.quoteId === "string"
+    && [15, 30, 60].includes(Number(receipt.durationMinutes))
+    && [receipt.expectedChargeUsd, receipt.authorizationCapUsd, receipt.settledAmountUsd, receipt.unusedAuthorizationUsd].every((value) => typeof value === "number" && Number.isFinite(value));
 }
 
 interface PendingTradingDeployment {

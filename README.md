@@ -20,36 +20,36 @@ To reproduce the complete service in another GCP project, use the
 [AI-agent migration runbook](./MIGRATION.md) and the idempotent scripts under
 `scripts/migration/`.
 
-The hosted skill now presents two deliberately separate payment experiences. The
-**Testnet USDC** choice uses the proven v2 Base Sepolia x402 path and may create the
-one-hour paper-trading stack. The **real-money on-ramp showcase** opens MoonPay's
+The hosted V3 skill presents two deliberately separate payment experiences. The
+**Testnet USDC** choice uses signed 15/30/60-minute quotes and settles only the exact
+expected charge on Base Sepolia before creating the selected temporary paper stack.
+The authorization ceiling is a safety limit; unused allowance is never transferred.
+The **real-money on-ramp showcase** opens MoonPay's
 hosted sandbox/login UI and stops at that handoff: it moves no funds and creates no
 GCP resources. The v3 service also retains free `/api/v3/*` simulation APIs. See
 [V3-MIGRATION.md](./V3-MIGRATION.md) for the production gates and independent-project
 release procedure.
 
-### V3 local sandbox
+### V3 native agent session
 
-The pay.sh-style sandbox turns a natural-language request into one constrained GCP
-plan and assigns a local test-only wallet. Its MoonPay command renders a terminal
-top-up summary, opens MoonPay's hosted sandbox, and intentionally stops there:
+Initialize one private machine-level state directory and launch Codex with the
+allowlisted gcp-x402 MCP tools injected:
 
 ```bash
-npx -y github:zwowo1997/gcp-x402 setup --sandbox
-npx -y github:zwowo1997/gcp-x402 plan "Build a Hyperliquid BTC paper-trading stack in Tokyo for one hour"
-# Unlock only before the provider handoff, then run this in an interactive terminal:
-PROXY_URL=http://localhost:3000 npx -y github:zwowo1997/gcp-x402 topup moonpay <plan-id>
+npx -y github:zwowo1997/gcp-x402 setup
+npx -y github:zwowo1997/gcp-x402 codex
 ```
 
-`gcp-x402 codex` launches Codex with the sandbox MCP tools injected for that session;
+`gcp-x402 codex` launches Codex with the V3 quote/deploy and MoonPay tools injected for that session;
 it does not modify the user's persistent Codex configuration. Matching
 `MOONPAY_PUBLIC_KEY=pk_test_...` and Secret-Manager-backed
 `MOONPAY_SECRET_KEY=sk_test_...` credentials on the proxy open MoonPay's signed hosted test checkout
-in a new tab. The CLI discovers this automatically. MoonPay owns its card/Apple Pay/KYC UI.
-The command does not monitor or consume a payment outcome and does not expose a dashboard.
+in a new tab. The MCP returns the hosted URL and attempts to open it directly, so no
+second terminal is needed. MoonPay owns its card/Apple Pay/KYC UI. The handoff does not
+monitor or consume a payment outcome and does not expose a dashboard.
 MoonPay test mode uses Ethereum Sepolia test assets—not Base Sepolia—so it cannot fund an
-x402 checkout or cause GCP provisioning in this beta. To run the actual end-to-end test,
-choose Testnet USDC in the skill and use the separate v2 Base Sepolia service.
+x402 checkout or cause GCP provisioning. The Base Sepolia route is separate and never
+falls back to V2 commands.
 
 ```
 agent ──POST /api/query──▶ proxy ──dry-run──▶ price ──402──▶ agent pays USDC ──▶ proxy runs query (byte-capped) ──▶ rows

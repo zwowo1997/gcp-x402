@@ -18,7 +18,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ stackId: st
     listTradingEvents(stack.id),
     tradingMetrics(stack.resources).catch((error) => ({ unavailable: true, reason: (error as Error).message })),
   ]);
-  return withDashboardCors(req, NextResponse.json({ stack, events, metrics, costBreakdown: tradingCostBreakdown(stack.resources), costSummary: tradingCostSummary(stack.resources), paperOnly: true }));
+  const durationMinutes = stack.durationMinutes ?? 60;
+  const settledAmountUsd = stack.settledAmountUsd;
+  const authorizationCapUsd = stack.authorizationCapUsd ?? settledAmountUsd;
+  return withDashboardCors(req, NextResponse.json({
+    stack, events, metrics,
+    durationMinutes,
+    expectedChargeUsd: stack.expectedChargeUsd ?? settledAmountUsd,
+    authorizationCapUsd,
+    settledAmountUsd,
+    unusedAuthorizationUsd: Number(Math.max(0, authorizationCapUsd - settledAmountUsd).toFixed(6)),
+    costBreakdown: tradingCostBreakdown(stack.resources, durationMinutes),
+    costSummary: tradingCostSummary(stack.resources, durationMinutes, settledAmountUsd),
+    paperOnly: true,
+  }));
 }
 
 export function OPTIONS(req: NextRequest) { return dashboardPreflight(req); }

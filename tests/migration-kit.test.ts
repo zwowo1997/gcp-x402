@@ -59,6 +59,7 @@ test("v3 release coordinator requires a configuration file, version, and explici
   assert.match(guide, /Do not claim user-signed AP2/);
   const deploy = await readFile("scripts/migration/deploy-service.sh", "utf8");
   assert.match(deploy, /V3_REAL_SETTLEMENT_ENABLED=false/);
+  assert.match(deploy, /V3_TESTNET_DEPLOY_ENABLED/);
   assert.match(deploy, /not implemented in this beta release/);
   const v3Verifier = await readFile("scripts/migration/verify-v3.sh", "utf8");
   assert.match(v3Verifier, /realSettlementEnabled == false/);
@@ -66,6 +67,7 @@ test("v3 release coordinator requires a configuration file, version, and explici
   assert.match(v3Verifier, /legacy_paid_routes=disabled/);
   const previewDeploy = await readFile("scripts/migration/deploy-v3-preview.sh", "utf8");
   assert.match(previewDeploy, /V3_PREVIEW_ONLY=true/);
+  assert.match(previewDeploy, /V3_TESTNET_DEPLOY_ENABLED=false/);
   assert.match(previewDeploy, /MOONPAY_PUBLIC_KEY/);
   assert.match(previewDeploy, /MOONPAY_SECRET_KEY/);
   assert.match(previewDeploy, /pk_test_/);

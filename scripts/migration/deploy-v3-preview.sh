@@ -15,7 +15,7 @@ ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY:-gcp-x402}"
 commit_id="$(git -C "$root" rev-parse --short=12 HEAD)"
 image="${TARGET_REGION}-docker.pkg.dev/${TARGET_PROJECT_ID}/${ARTIFACT_REPOSITORY}/v3-preview:${commit_id}"
 secret_bindings="QUOTE_SECRET=gcp-x402-v3-preview-quote-secret:latest,RESOURCE_CAPABILITY_SECRET=gcp-x402-v3-preview-resource-capability:latest,BETA_ACCESS_PASSWORD=gcp-x402-v3-preview-beta-password:latest,BETA_SESSION_SECRET=gcp-x402-v3-preview-beta-session-secret:latest"
-env_vars="^|^X402_NETWORK=base-sepolia|TEST_MODE=true|V3_PREVIEW_ONLY=true|V3_SIMULATION_STORE=firestore|V3_REAL_SETTLEMENT_ENABLED=false|PAY_TO_ADDRESS=${PAY_TO_ADDRESS}|GCP_PROJECT_ID=${TARGET_PROJECT_ID}|PUBLIC_BASE_URL=https://migration.invalid"
+env_vars="^|^X402_NETWORK=base-sepolia|TEST_MODE=true|V3_PREVIEW_ONLY=true|V3_SIMULATION_STORE=firestore|V3_REAL_SETTLEMENT_ENABLED=false|V3_TESTNET_DEPLOY_ENABLED=false|PAY_TO_ADDRESS=${PAY_TO_ADDRESS}|GCP_PROJECT_ID=${TARGET_PROJECT_ID}|PUBLIC_BASE_URL=https://migration.invalid"
 if [[ -n "${MOONPAY_PUBLIC_KEY:-}" ]]; then
   [[ "$MOONPAY_PUBLIC_KEY" == pk_test_* ]] || { echo "V3 accepts only a MoonPay pk_test_ publishable key" >&2; exit 1; }
   [[ "${MOONPAY_FIAT_AMOUNT_USD:-30}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "MOONPAY_FIAT_AMOUNT_USD must be numeric" >&2; exit 1; }

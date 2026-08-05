@@ -53,6 +53,9 @@ facilitator have passed integration tests.
 6. Only after human approval, use `scripts/release.sh bootstrap|deploy|verify ...
    --allow-mutation`. The explicit flag is required even when the configuration is valid.
 7. Keep `X402_NETWORK=base-sepolia`, `TEST_MODE=true`, and `V3_REAL_SETTLEMENT_ENABLED=false`.
+   Keep `V3_TESTNET_DEPLOY_ENABLED=false` for a simulation-only replica. Set it to `true`
+   only in a fully bootstrapped replica with the runtime image, Pub/Sub, shared Spanner,
+   Cloud Tasks, IAM, and dashboard configuration from [MIGRATION.md](./MIGRATION.md).
    Run `scripts/migration/verify-v3.sh`. It unlocks a temporary private-beta session,
    verifies the protected v3 catalog, creates one free simulation, proves its prorated
    resource total reconciles to the quote, and exercises `approve → fund → provision`.
@@ -65,7 +68,8 @@ facilitator have passed integration tests.
 2. Jurisdiction, KYC, sanctions, limits, card-network and disclosure review. Never promise
    KYC-free conversion; a hosted provider may request verification.
 3. A real Coinbase sandbox integration with webhook signature verification and idempotent order state.
-4. A compatible x402 v2 `upto` facilitator test that proves settlement is at or below the
+4. A compatible x402 v2 `upto` facilitator test before replacing the current Base Sepolia
+   exact-expected-charge bridge; it must prove settlement is at or below the
    mandate cap, settles only after provisioning, and leaves unused authorization untransferred.
 5. EIP-712/AP2 mandate verification on the server, nonce consumption in Firestore, replay and
    expiry tests, and a user-controlled trusted signing surface.
@@ -84,11 +88,12 @@ deployment/verification. Do not commit target project identifiers into a public 
 
 1. Keep v2 active and unchanged.
 2. Push the v3 branch, open a PR, and tag an immutable preview commit after review.
-3. Deploy v3 only to the separate `gcp-x402-v3-preview` Cloud Run service, with the beta password and
-   rate limit still enabled.
+3. Deploy v3 only to a separate Cloud Run service, with the beta password and rate limit
+   still enabled. Keep `V3_TESTNET_DEPLOY_ENABLED=false` for a free preview; use the full
+   migration bootstrap before enabling it for internal Base Sepolia provisioning.
 4. Distribute the preview service’s dynamically rendered `/skill` URL. The skill asks
-   users to choose either the v2 Base Sepolia end-to-end test or the v3 MoonPay hosted-UI
-   showcase, and keeps their service origins explicit and separate.
+   users to choose either the native V3 Base Sepolia route or the MoonPay hosted-UI
+   showcase. It must never direct users to legacy V2 commands.
 5. Promote only after `verify-v3.sh`, mobile/visual QA, and a human approval. A production
    onramp/x402 implementation is still blocked by the gates above.
 

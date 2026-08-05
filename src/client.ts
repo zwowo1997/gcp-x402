@@ -11,7 +11,8 @@ import { getAccount } from "./wallet.js";
 import { networkById, type ClientNetwork } from "./networks.js";
 import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 import { lockedServiceHelp } from "./project-context.js";
-import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
+import { clearPendingTradingRequest, isV3TradingReceipt, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
+import { boundedFetch } from "./network.js";
 
 // Cap what the wrapper will auto-pay without a fresh decision, in USDC base
 // units (6 decimals). A hard backstop against a mispriced/hostile quote.
@@ -21,7 +22,7 @@ const serviceFetch: typeof fetch = (input, init = {}) => {
   const headers = new Headers(init.headers);
   const session = betaSessionToken();
   if (session) headers.set("x-gcp-x402-session", session);
-  return fetch(input, { ...init, headers });
+  return boundedFetch(input, { ...init, headers });
 };
 
 /** Create/load a wallet only for an operation that can actually pay. */
@@ -71,7 +72,7 @@ async function proxyNetwork(): Promise<ClientNetwork> {
 export interface BetaUnlockResult { expiresAt: string; }
 
 export async function unlockService(password: string): Promise<BetaUnlockResult> {
-  const response = await fetch(new URL("/api/beta/unlock", config.proxyUrl), {
+  const response = await boundedFetch(new URL("/api/beta/unlock", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ password }),
@@ -95,7 +96,7 @@ export interface WalletInfo {
 export async function walletInfo(): Promise<WalletInfo> {
   const account = getAccount();
   const net = await proxyNetwork();
-  const pub = createPublicClient({ transport: http(net.rpcUrl) });
+  const pub = createPublicClient({ transport: http(net.rpcUrl, { timeout: 10_000, retryCount: 0 }) });
 
   let balance = "unknown";
   try {
@@ -226,6 +227,36 @@ export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
 export type V3DurationMinutes = 15 | 30 | 60;
 export type V3SimulationAction = "approve" | "fund" | "provision" | "stop" | "resume" | "shutdown" | "cancel";
 export interface V3SimulationResult { stackId: string; dashboardPath: string; dashboardUrl?: string; [key: string]: unknown; }
+export interface V3TradingCatalogResult {
+  profileId: "trading.paper.ema";
+  mode: "paper-only";
+  region: string;
+  durationsMinutes: V3DurationMinutes[];
+  plans: Array<{ durationMinutes: V3DurationMinutes; quote: { expectedChargeUsd: number; authorizationCapUsd: number; estimatedGcpUsd: number }; resources: Array<Record<string, unknown>> }>;
+  deploymentEnabled: boolean;
+  safety: string;
+}
+export interface V3TradingQuoteResult {
+  quote: {
+    quoteId: string;
+    requestId: string;
+    payer: string;
+    expiresAt: string;
+    strategy: PaperTradingConfig;
+    quote: { durationMinutes: V3DurationMinutes; expectedChargeUsd: number; authorizationCapUsd: number; estimatedGcpUsd: number; unusedAuthorization: "never-transferred" };
+    resources: Array<Record<string, unknown>>;
+  };
+  quoteToken: string;
+  deploymentEnabled: boolean;
+}
+export interface V3TradingDeployment extends PaperTradingDeployment {
+  quoteId: string;
+  durationMinutes: V3DurationMinutes;
+  expectedChargeUsd: number;
+  authorizationCapUsd: number;
+  settledAmountUsd: number;
+  unusedAuthorizationUsd: number;
+}
 export interface MoonPayAvailabilityResult { enabled: boolean; mode: "test"; network: "ethereum-sepolia"; asset: "USDC"; fiatAmountUsd: number; note: string; }
 export interface MoonPayCheckoutResult extends MoonPayAvailabilityResult { provider: "moonpay"; checkoutUrl: string; enabled: true; warning: string; }
 
@@ -237,6 +268,69 @@ export async function v3Catalog(): Promise<unknown> {
   const res = await serviceFetch(new URL("/api/v3/catalog", config.proxyUrl));
   if (!res.ok) throw await serviceError(res, "V3 catalog");
   return res.json();
+}
+
+export async function v3TradingCatalog(): Promise<V3TradingCatalogResult> {
+  const res = await serviceFetch(new URL("/api/v3/trading/catalog", config.proxyUrl));
+  if (!res.ok) throw await serviceError(res, "V3 trading catalog");
+  return res.json() as Promise<V3TradingCatalogResult>;
+}
+
+export async function quoteV3PaperTrading(input: { durationMinutes: V3DurationMinutes; strategy?: PaperTradingConfig; requestId?: string }): Promise<V3TradingQuoteResult> {
+  const res = await serviceFetch(new URL("/api/v3/trading/quote", config.proxyUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...input, payer: walletAddress() }),
+  });
+  if (!res.ok) throw await serviceError(res, "V3 trading quote");
+  return res.json() as Promise<V3TradingQuoteResult>;
+}
+
+export async function deployV3PaperTrading(input: { quoteToken: string; quoteId: string; durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number }): Promise<V3TradingDeployment> {
+  const quoted = decodeV3TradingQuoteToken(input.quoteToken);
+  if (!quoted || quoted.quoteId !== input.quoteId || quoted.quote.durationMinutes !== input.durationMinutes) throw new Error("Deployment must use the exact signed quote shown to the user.");
+  const expected = quoted.quote.expectedChargeUsd;
+  if (!Number.isFinite(input.approvedExpectedChargeUsd) || Math.abs(input.approvedExpectedChargeUsd - expected) > 0.000001) throw new Error(`Fresh approval must exactly match quote ${input.quoteId} ($${expected.toFixed(2)} testnet USDC).`);
+  // The signed quote, not a second set of deploy parameters, is the complete
+  // source of truth for idempotency and strategy configuration.
+  const requestInput = { version: "v3", quoteId: quoted.quoteId, durationMinutes: quoted.quote.durationMinutes, strategy: quoted.strategy };
+  const existing = recentTradingReceipt(requestInput);
+  if (existing && isV3TradingReceipt(existing)) return { ...existing, reusedReceipt: true, reuseReason: "Returned the recent matching V3 receipt instead of creating another paid stack." };
+  const requestId = pendingTradingRequestId(requestInput, randomUUID);
+  const res = await paidFetch(new URL("/api/v3/trading/deploy", config.proxyUrl), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteToken: input.quoteToken }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const terminal = (res.status === 409 && text.includes("finished without a reusable result")) || (res.status === 502 && text.includes("provisioning failed"));
+    if (terminal) clearPendingTradingRequest(requestId);
+    throw new Error(`V3 paper trading deployment failed (${res.status}): ${text}`);
+  }
+  const deployment = JSON.parse(text) as V3TradingDeployment;
+  saveTradingReceipt({ ...deployment, maxPriceUsd: deployment.authorizationCapUsd, requestId, configJson: tradingConfigJson(requestInput), savedAt: new Date().toISOString() });
+  clearPendingTradingRequest(requestId);
+  return deployment;
+}
+
+export async function v3TradingStatus(stackId: string, capability: string): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/v3/trading/${encodeURIComponent(stackId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
+  if (!res.ok) throw await serviceError(res, "V3 trading status");
+  return res.json();
+}
+
+export async function controlV3PaperTrading(stackId: string, capability: string, control: "start" | "stop" | "resume" | "shutdown"): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/v3/trading/${encodeURIComponent(stackId)}/control`, config.proxyUrl), { method: "POST", headers: { "content-type": "application/json", "x-resource-capability": capability }, body: JSON.stringify({ control }) });
+  if (!res.ok) throw await serviceError(res, "V3 trading control");
+  return res.json();
+}
+
+/** Read only the display fields from a signed server quote; the server verifies it before payment. */
+function decodeV3TradingQuoteToken(token: string): V3TradingQuoteResult["quote"] | null {
+  try {
+    const body = token.slice(0, token.lastIndexOf("."));
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as V3TradingQuoteResult["quote"];
+    return parsed?.quoteId && parsed?.quote ? parsed : null;
+  } catch { return null; }
 }
 
 function v3DashboardUrl(path: string): string | undefined {

@@ -51,6 +51,11 @@ export interface TradingStackRecord {
   config: PaperStrategyConfig;
   resources: TradingResources;
   maxGcpCostUsd: number;
+  /** Legacy V2 records omit this and are interpreted using TRADING_LEASE_HOURS. */
+  durationMinutes?: 15 | 30 | 60;
+  quoteId?: string;
+  expectedChargeUsd?: number;
+  authorizationCapUsd?: number;
   settledAmountUsd: number;
   createdAt: string;
   expiresAt: string;

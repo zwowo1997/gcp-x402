@@ -42,7 +42,7 @@ export interface V3Telemetry {
 }
 
 const authorizationCaps: Record<V3ProductId, Record<V3DurationMinutes, number>> = {
-  "trading.paper.ema": { 15: 1.25, 30: 2.5, 60: 5 },
+  "trading.paper.ema": { 15: 0.15, 30: 0.25, 60: 0.5 },
   "vm.small": { 15: 0.25, 30: 0.5, 60: 1 },
   "storage.small": { 15: 0.13, 30: 0.25, 60: 0.5 },
 };
@@ -69,7 +69,9 @@ export function isV3Duration(value: number): value is V3DurationMinutes {
 }
 
 export function v3Quote(productId: V3ProductId, durationMinutes: V3DurationMinutes): V3Quote {
-  const estimatedGcpUsd = roundUsd(hourlyGcpEstimate[productId] * durationMinutes / 60);
+  const estimatedGcpUsd = productId === "trading.paper.ema"
+    ? roundUsd((hourlyGcpEstimate[productId] - 0.001) * durationMinutes / 60 + 0.001)
+    : roundUsd(hourlyGcpEstimate[productId] * durationMinutes / 60);
   const expectedChargeUsd = cents(estimatedGcpUsd * 1.2 + 0.05);
   const authorizationCapUsd = authorizationCaps[productId][durationMinutes];
   if (expectedChargeUsd > authorizationCapUsd) throw new Error("V3 payment plan exceeds its authorization cap.");
@@ -87,11 +89,106 @@ export function v3ResourceBreakdown(quote: V3Quote): V3Resource[] {
     return [{ service: quote.productId === "vm.small" ? "Compute Engine" : "Cloud Storage", region: "us-central1", action: "temporary allowlisted demo resource", estimatedUsd: quote.estimatedGcpUsd }];
   }
   const factor = quote.durationMinutes / 60;
-  const rows = tradingHourlyResources.map((item) => ({ ...item, estimatedUsd: roundUsd(item.estimatedUsd * factor) }));
+  const rows = tradingHourlyResources.map((item) => ({ ...item, estimatedUsd: roundUsd(item.estimatedUsd * (item.service === "Cloud Tasks" ? 1 : factor)) }));
   // Preserve an exact visible total after micro-dollar rounding.
   const difference = roundUsd(quote.estimatedGcpUsd - rows.reduce((sum, item) => sum + item.estimatedUsd, 0));
   rows[0].estimatedUsd = roundUsd(rows[0].estimatedUsd + difference);
   return rows;
+}
+
+export interface V3PaperStrategyConfig {
+  symbol: "BTC";
+  fastEma: number;
+  slowEma: number;
+  evaluationIntervalSeconds: 60;
+  virtualBalanceUsd: number;
+  maxOrderNotionalUsd: number;
+  maxPositionNotionalUsd: number;
+  maxDailyLossUsd: number;
+  slippageBps: number;
+}
+
+export function normalizeV3PaperStrategy(input: Partial<V3PaperStrategyConfig> = {}): V3PaperStrategyConfig {
+  const strategy: V3PaperStrategyConfig = {
+    symbol: "BTC",
+    fastEma: input.fastEma ?? 9,
+    slowEma: input.slowEma ?? 21,
+    evaluationIntervalSeconds: 60,
+    virtualBalanceUsd: input.virtualBalanceUsd ?? 10_000,
+    maxOrderNotionalUsd: input.maxOrderNotionalUsd ?? 1_000,
+    maxPositionNotionalUsd: input.maxPositionNotionalUsd ?? 2_000,
+    maxDailyLossUsd: input.maxDailyLossUsd ?? 500,
+    slippageBps: input.slippageBps ?? 5,
+  };
+  if (!Number.isInteger(strategy.fastEma) || !Number.isInteger(strategy.slowEma) || strategy.fastEma < 2 || strategy.slowEma <= strategy.fastEma || strategy.slowEma > 64) {
+    throw new Error("EMA windows must be integers, slowEma must be greater than fastEma, and slowEma cannot exceed 64.");
+  }
+  for (const [name, value] of Object.entries({ virtualBalanceUsd: strategy.virtualBalanceUsd, maxOrderNotionalUsd: strategy.maxOrderNotionalUsd, maxPositionNotionalUsd: strategy.maxPositionNotionalUsd, maxDailyLossUsd: strategy.maxDailyLossUsd })) {
+    if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive number.`);
+  }
+  if (strategy.maxOrderNotionalUsd > strategy.maxPositionNotionalUsd) throw new Error("maxOrderNotionalUsd cannot exceed maxPositionNotionalUsd.");
+  if (!Number.isFinite(strategy.slippageBps) || strategy.slippageBps < 0 || strategy.slippageBps > 100) throw new Error("slippageBps must be between 0 and 100.");
+  return strategy;
+}
+
+export interface V3TradingQuotePayload {
+  version: "gcp-x402-trading-quote-1";
+  quoteId: string;
+  requestId: string;
+  payer: string;
+  payTo: string;
+  network: "base-sepolia";
+  asset: string;
+  profileId: "trading.paper.ema";
+  region: "asia-northeast1";
+  strategy: V3PaperStrategyConfig;
+  quote: V3Quote;
+  resources: V3Resource[];
+  issuedAt: string;
+  expiresAt: string;
+  requestHash: string;
+}
+
+export function v3TradingQuoteHashPayload(payload: Omit<V3TradingQuotePayload, "requestHash">): Record<string, unknown> {
+  return { ...payload };
+}
+
+export function createV3TradingQuotePayload(input: {
+  durationMinutes: V3DurationMinutes;
+  payer: string;
+  payTo: string;
+  asset: string;
+  strategy?: Partial<V3PaperStrategyConfig>;
+  requestId?: string;
+  quoteId?: string;
+  now?: Date;
+}): V3TradingQuotePayload {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(input.payer) || !/^0x[a-fA-F0-9]{40}$/.test(input.payTo)) throw new Error("payer and payTo must be EVM addresses.");
+  const now = input.now ?? new Date();
+  const quote = v3Quote("trading.paper.ema", input.durationMinutes);
+  const unsigned: Omit<V3TradingQuotePayload, "requestHash"> = {
+    version: "gcp-x402-trading-quote-1",
+    quoteId: input.quoteId ?? randomUUID(),
+    requestId: input.requestId ?? randomUUID(),
+    payer: input.payer.toLowerCase(),
+    payTo: input.payTo.toLowerCase(),
+    network: "base-sepolia",
+    asset: input.asset.toLowerCase(),
+    profileId: "trading.paper.ema",
+    region: "asia-northeast1",
+    strategy: normalizeV3PaperStrategy(input.strategy),
+    quote,
+    resources: v3ResourceBreakdown(quote),
+    issuedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 10 * 60_000).toISOString(),
+  };
+  return { ...unsigned, requestHash: createHash("sha256").update(canonicalJson(v3TradingQuoteHashPayload(unsigned))).digest("hex") };
+}
+
+export function verifyV3TradingQuotePayload(payload: V3TradingQuotePayload, now = new Date()): boolean {
+  const { requestHash, ...unsigned } = payload;
+  const expected = createHash("sha256").update(canonicalJson(v3TradingQuoteHashPayload(unsigned))).digest("hex");
+  return requestHash === expected && new Date(payload.expiresAt).getTime() > now.getTime();
 }
 
 export interface V3MandateDraft {
