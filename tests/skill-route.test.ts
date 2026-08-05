@@ -36,11 +36,12 @@ test("v3 preview skill keeps unlock and MoonPay inside the native session", asyn
   assert.match(source, /buy-sandbox\.moonpay\.com/);
 });
 
-test("preview skill contains no hard-coded deployment origin", async () => {
+test("preview skill binds the native launcher to its rendered deployment origin", async () => {
   const source = await readFile("skill/gcp-x402-v3-preview/SKILL.md", "utf8");
   const preview = "https://preview.example.run.app";
   const rendered = renderSkillForOrigin(source, preview);
-  assert.equal(rendered, source);
+  assert.notEqual(rendered, source);
+  assert.match(rendered, /PROXY_URL=https:\/\/preview\.example\.run\.app npx -y github:zwowo1997\/gcp-x402 codex/);
   assert.doesNotMatch(rendered, /gcp-x402-tokyo-837831206506/);
 });
 

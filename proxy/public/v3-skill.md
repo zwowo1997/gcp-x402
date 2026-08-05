@@ -11,7 +11,7 @@ If `v3_trading_catalog` is unavailable, explain that an installed skill cannot i
 
 ```bash
 npx -y github:zwowo1997/gcp-x402 setup
-npx -y github:zwowo1997/gcp-x402 codex
+PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 codex
 ```
 
 This launcher injects only the allowlisted gcp-x402 tools and uses private machine-level state across project directories. Never claim the existing process can gain tools dynamically.
