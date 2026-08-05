@@ -33,7 +33,7 @@ manifest="$root/release-manifest.json"
 write_manifest() {
   local onramp="simulator"
   if [[ -n "${MOONPAY_PUBLIC_KEY:-}" ]]; then onramp="moonpay-test-hosted"; fi
-  node -e 'const fs=require("fs"); const [path,version,commit,project,region,onramp]=process.argv.slice(1); fs.writeFileSync(path, JSON.stringify({schemaVersion:2,release:version,sourceCommit:commit,targetProject:project,targetRegion:region,interfaces:{skill:"v3",mcp:"v3",payment:"x402-v2-upto-contract-preview",onramp},realSettlement:false,verification:"not-run",generatedAt:new Date().toISOString()},null,2)+"\n")' "$manifest" "$version" "$commit" "$TARGET_PROJECT_ID" "${TARGET_REGION:-asia-northeast1}" "$onramp"
+  node -e 'const fs=require("fs"); const [path,version,commit,project,region,onramp,testnetDeploy]=process.argv.slice(1); fs.writeFileSync(path, JSON.stringify({schemaVersion:3,release:version,sourceCommit:commit,targetProject:project,targetRegion:region,interfaces:{skill:"v3-native",mcp:"v3-native",payment:"x402-v1-exact-expected-charge",onramp},baseSepoliaDeployment:testnetDeploy==="true",mainnetSettlement:false,unusedAuthorization:"never-transferred",verification:"not-run",generatedAt:new Date().toISOString()},null,2)+"\n")' "$manifest" "$version" "$commit" "$TARGET_PROJECT_ID" "${TARGET_REGION:-asia-northeast1}" "$onramp" "${V3_TESTNET_DEPLOY_ENABLED:-false}"
 }
 finalize_manifest() {
   local phase="$1" revision="${2:-}" proxy_digest="${3:-}" runtime_digest="${4:-}" skill_sha="${5:-}" dashboard_url="${6:-}"
@@ -48,7 +48,9 @@ case "$action" in
     echo "target_project=$TARGET_PROJECT_ID"
     echo "target_region=${TARGET_REGION:-asia-northeast1}"
     echo "mutation=disabled"
+    echo "mainnet_settlement=disabled"
     echo "real_settlement=disabled"
+    echo "base_sepolia_deployment=${V3_TESTNET_DEPLOY_ENABLED:-false}"
     echo "next: review V3-MIGRATION.md, then use bootstrap/deploy/verify with --allow-mutation"
     ;;
   bootstrap|deploy|verify|rollback)

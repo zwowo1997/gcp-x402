@@ -7,30 +7,19 @@ for command_name in curl gcloud jq openssl; do command -v "$command_name" >/dev/
 TARGET_REGION="${TARGET_REGION:-asia-northeast1}"
 SERVICE_NAME="${SERVICE_NAME:-gcp-x402-v3-preview}"
 SERVICE_URL="${SERVICE_URL:-$(gcloud run services describe "$SERVICE_NAME" --region="$TARGET_REGION" --project="$TARGET_PROJECT_ID" --format='value(status.url)')}"
-V2_SERVICE_NAME="${V2_SERVICE_NAME:-gcp-x402-tokyo}"
-project_number="$(gcloud projects describe "$TARGET_PROJECT_ID" --format='value(projectNumber)')"
-V2_SERVICE_URL="${V2_SERVICE_URL:-https://${V2_SERVICE_NAME}-${project_number}.${TARGET_REGION}.run.app}"
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 curl -fsSL "$SERVICE_URL/skill" -o "$work_dir/skill.md"
-grep -q 'setup --sandbox' "$work_dir/skill.md"
-grep -q 'topup moonpay <PLAN_ID>' "$work_dir/skill.md"
-grep -q 'Testnet USDC' "$work_dir/skill.md"
-grep -q 'Real-money on-ramp showcase' "$work_dir/skill.md"
-grep -q 'trading-deploy' "$work_dir/skill.md"
+grep -q 'gcp-x402 codex' "$work_dir/skill.md"
+grep -q 'unlock_service' "$work_dir/skill.md"
+grep -q 'v3_trading_catalog' "$work_dir/skill.md"
+grep -q 'v3_trading_quote' "$work_dir/skill.md"
+grep -q 'v3_trading_deploy' "$work_dir/skill.md"
+grep -q 'moonpay_showcase' "$work_dir/skill.md"
+grep -q 'Do not use V2 commands as a fallback' "$work_dir/skill.md"
 grep -q 'github:zwowo1997/gcp-x402' "$work_dir/skill.md"
-
-grep -q "PROXY_URL=${V2_SERVICE_URL}.* trading-deploy" "$work_dir/skill.md"
-grep -q "PROXY_URL=${SERVICE_URL}.* topup moonpay" "$work_dir/skill.md"
-if grep -Eq "PROXY_URL=${SERVICE_URL}.* (trading-deploy|provision|wallet|query)( |$)" "$work_dir/skill.md"; then
-  echo "preview service origin is attached to a paid/testnet command" >&2
-  exit 1
-fi
-if grep -Eq "PROXY_URL=${V2_SERVICE_URL}.* topup moonpay( |$)" "$work_dir/skill.md"; then
-  echo "v2 service origin is attached to the MoonPay showcase" >&2
-  exit 1
-fi
+if grep -q 'gcp-x402-tokyo-' "$work_dir/skill.md"; then echo "skill contains a source-project service origin" >&2; exit 1; fi
 
 legacy_status="$(curl -sS -o "$work_dir/legacy.json" -w '%{http_code}' "$SERVICE_URL/api/trading/catalog")"
 [[ "$legacy_status" == "503" ]]
@@ -40,6 +29,16 @@ jq -n --arg password "$password_value" '{password:$password}' > "$work_dir/unloc
 unset password_value
 curl -fsSL -X POST -H 'content-type: application/json' --data-binary "@$work_dir/unlock.json" "$SERVICE_URL/api/beta/unlock" -o "$work_dir/session.json"
 session_value="$(jq -er '.token' "$work_dir/session.json")"
+
+trading_catalog_status="$(curl -sS -H "x-gcp-x402-session: $session_value" -o "$work_dir/trading-catalog.json" -w '%{http_code}' "$SERVICE_URL/api/v3/trading/catalog")"
+[[ "$trading_catalog_status" == "200" ]]
+jq -e '.durationsMinutes == [15,30,60] and .deploymentEnabled == false and ([.plans[].quote.expectedChargeUsd] == [0.09,0.12,0.19])' "$work_dir/trading-catalog.json" >/dev/null
+jq -n '{durationMinutes:15,payer:"0x0000000000000000000000000000000000000001",requestId:"verify-v3-quote"}' > "$work_dir/trading-quote-request.json"
+curl -fsSL -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data-binary "@$work_dir/trading-quote-request.json" "$SERVICE_URL/api/v3/trading/quote" -o "$work_dir/trading-quote.json"
+jq -e '.deploymentEnabled == false and .quote.quote.durationMinutes == 15 and .quote.quote.expectedChargeUsd == 0.09 and .quote.quote.authorizationCapUsd == 0.15 and (.quoteToken | length > 20)' "$work_dir/trading-quote.json" >/dev/null
+jq -n --arg quoteToken "$(jq -r .quoteToken "$work_dir/trading-quote.json")" '{quoteToken:$quoteToken}' > "$work_dir/trading-deploy-request.json"
+disabled_deploy_status="$(curl -sS -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data-binary "@$work_dir/trading-deploy-request.json" -o "$work_dir/trading-deploy.json" -w '%{http_code}' "$SERVICE_URL/api/v3/trading/deploy")"
+[[ "$disabled_deploy_status" == "503" ]]
 
 catalog_status="$(curl -sS -H "x-gcp-x402-session: $session_value" -o "$work_dir/catalog.json" -w '%{http_code}' "$SERVICE_URL/api/v3/catalog")"
 [[ "$catalog_status" == "200" ]]
