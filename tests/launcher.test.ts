@@ -23,6 +23,7 @@ test("native Codex session injects the unified V3 and MoonPay-capable MCP", () =
   for (const tool of ["unlock_service", "v3_trading_catalog", "v3_trading_quote", "v3_trading_deploy", "moonpay_showcase", "sandbox_checkout"]) assert.match(rendered, new RegExp(tool));
   assert.match(rendered, /mcp_servers\.gcp_x402\.env\.PROXY_URL=.*preview\.example\.run\.app/);
   assert.match(rendered, /developer_instructions=/);
+  assert.match(rendered, /mcp_servers\.gcp_x402\.tool_timeout_sec=180/);
   assert.match(NATIVE_SESSION_INSTRUCTIONS, /ask which payment path/i);
   assert.match(NATIVE_SESSION_INSTRUCTIONS, /never run legacy.*trading shell commands/i);
   assert.match(NATIVE_SESSION_INSTRUCTIONS, /MoonPay sandbox/);

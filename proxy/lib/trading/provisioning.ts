@@ -156,12 +156,33 @@ export async function createTradingStackResources(resources: TradingResources, s
   const created: Array<() => Promise<void>> = [() => deleteTenantRows(resources)];
   try {
     await createTopic(resources.topic); created.push(() => deleteTopic(resources.topic));
-    const writerUrl = await createService(resources.writerService, "writer", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.writerService));
-    await createPushSubscription(resources.persistSubscription, resources.topic, writerUrl); created.push(() => deleteSubscription(resources.persistSubscription));
-    const strategyUrl = await createService(resources.strategyService, "strategy", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.strategyService));
-    await createPushSubscription(resources.strategySubscription, resources.topic, strategyUrl); created.push(() => deleteSubscription(resources.strategySubscription));
-    const collectorUrl = await createService(resources.collectorService, "collector", resources.topic, resources, strategyConfig); created.push(() => deleteService(resources.collectorService));
+    created.push(
+      () => deleteService(resources.writerService),
+      () => deleteService(resources.strategyService),
+      () => deleteService(resources.collectorService),
+    );
+    // These services are independent after the topic exists. Creating them in
+    // parallel keeps the paid request comfortably below MCP's normal deadline.
+    const services = await Promise.allSettled([
+      createService(resources.writerService, "writer", resources.topic, resources, strategyConfig),
+      createService(resources.strategyService, "strategy", resources.topic, resources, strategyConfig),
+      createService(resources.collectorService, "collector", resources.topic, resources, strategyConfig),
+    ]);
+    const rejected = services.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (rejected) throw rejected.reason;
+    const [writerUrl, strategyUrl, collectorUrl] = services.map((result) => (result as PromiseFulfilledResult<string>).value);
     if (!collectorUrl) throw new Error("Cloud Run collector did not return a URL.");
+
+    created.push(
+      () => deleteSubscription(resources.persistSubscription),
+      () => deleteSubscription(resources.strategySubscription),
+    );
+    const subscriptions = await Promise.allSettled([
+      createPushSubscription(resources.persistSubscription, resources.topic, writerUrl),
+      createPushSubscription(resources.strategySubscription, resources.topic, strategyUrl),
+    ]);
+    const rejectedSubscription = subscriptions.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (rejectedSubscription) throw rejectedSubscription.reason;
   } catch (error) {
     await Promise.all(created.reverse().map((cleanup) => cleanup().catch(() => undefined)));
     throw error;

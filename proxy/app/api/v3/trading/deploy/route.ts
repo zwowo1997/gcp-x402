@@ -9,7 +9,7 @@ import { createTradingStackResources, deleteTradingStackResources } from "@/lib/
 import { tradingCostBreakdown, tradingCostSummary } from "@/lib/trading/costs";
 import { tradingStackFromV3Quote } from "@/lib/trading/v3-lease";
 import { validateV3ExactSettlement, usdToUsdcBaseUnits } from "@/lib/trading/v3-payment";
-import { verifyV3TradingQuoteToken } from "@/lib/trading/v3-quote-token";
+import { authenticateV3TradingQuoteToken, verifyV3TradingQuoteToken } from "@/lib/trading/v3-quote-token";
 import { type TradingStackRecord } from "@/lib/trading/types";
 import { buildRequirements, decodePaymentHeader, encodeSettlementHeader, paymentRequiredBody, settle, verify } from "@/lib/x402";
 import { recordTransaction } from "@/lib/store";
@@ -46,8 +46,14 @@ export async function POST(req: NextRequest) {
   let body: { quoteToken?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Body must be JSON." }, { status: 400 }); }
   if (!body.quoteToken) return NextResponse.json({ error: "A signed quoteToken is required." }, { status: 400 });
+  const authenticatedQuote = authenticateV3TradingQuoteToken(body.quoteToken, config.quoteSecret);
+  if (!authenticatedQuote) return NextResponse.json({ error: "Trading quote is invalid or modified." }, { status: 400 });
+  // Recovery precedes expiry and payment checks. A lost HTTP response can then
+  // retrieve the one already-reserved result without another authorization.
+  const existing = await findTradingStackByRequestKey(authenticatedQuote.requestId);
+  if (existing) return existingResponse(existing, req.headers.get(BETA_SESSION_HEADER) ?? "");
   const quote = verifyV3TradingQuoteToken(body.quoteToken, config.quoteSecret);
-  if (!quote) return NextResponse.json({ error: "Trading quote is invalid, modified, or expired." }, { status: 400 });
+  if (!quote) return NextResponse.json({ error: "Trading quote is expired. Create a fresh quote before starting a new deployment." }, { status: 400 });
 
   const amount = usdToUsdcBaseUnits(quote.quote.expectedChargeUsd);
   const resource = `${new URL(req.url).origin}/api/v3/trading/deploy`;
@@ -62,8 +68,6 @@ export async function POST(req: NextRequest) {
   if (!header) return NextResponse.json(paymentRequiredBody(requirements), { status: 402 });
   let payment;
   try { payment = decodePaymentHeader(header); } catch { return NextResponse.json(paymentRequiredBody(requirements, "Malformed X-PAYMENT header."), { status: 402 }); }
-  const existing = await findTradingStackByRequestKey(quote.requestId);
-  if (existing) return existingResponse(existing, req.headers.get(BETA_SESSION_HEADER) ?? "");
   const verification = await verify(payment, requirements).catch((error) => ({ isValid: false, invalidReason: (error as Error).message }));
   if (!verification.isValid) return NextResponse.json(paymentRequiredBody(requirements, verification.invalidReason ?? "Payment invalid."), { status: 402 });
   if (!("payer" in verification) || !verification.payer) return NextResponse.json({ error: "Facilitator did not return a payer identity." }, { status: 502 });

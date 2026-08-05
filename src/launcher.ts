@@ -53,6 +53,7 @@ export function codexLaunchArguments(executable: string, args: string[], proxyUr
     "-c", `mcp_servers.gcp_x402.command=${JSON.stringify(process.execPath)}`,
     "-c", `mcp_servers.gcp_x402.args=${JSON.stringify([executable])}`,
     "-c", `mcp_servers.gcp_x402.enabled_tools=${JSON.stringify(NATIVE_MCP_TOOLS)}`,
+    "-c", "mcp_servers.gcp_x402.tool_timeout_sec=180",
   ];
   // Codex may launch stdio MCP children with a narrowed environment. Pin the
   // selected hosted service in the MCP configuration rather than relying on
