@@ -10,8 +10,11 @@ SERVICE_URL="${SERVICE_URL:-$(gcloud run services describe "$SERVICE_NAME" --reg
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
+trap 'echo "v3_verification_failed_line=$LINENO" >&2' ERR
+verification_id="verify-v3-$(date +%s)-$$"
 curl -fsSL "$SERVICE_URL/skill" -o "$work_dir/skill.md"
-grep -q 'gcp-x402 codex' "$work_dir/skill.md"
+grep -q 'Never execute `gcp-x402 start` from inside the current coding-agent chat' "$work_dir/skill.md"
+grep -q 'Settings > MCP servers' "$work_dir/skill.md"
 grep -q 'unlock_service' "$work_dir/skill.md"
 grep -q 'v3_trading_catalog' "$work_dir/skill.md"
 grep -q 'v3_trading_quote' "$work_dir/skill.md"
@@ -33,7 +36,7 @@ session_value="$(jq -er '.token' "$work_dir/session.json")"
 trading_catalog_status="$(curl -sS -H "x-gcp-x402-session: $session_value" -o "$work_dir/trading-catalog.json" -w '%{http_code}' "$SERVICE_URL/api/v3/trading/catalog")"
 [[ "$trading_catalog_status" == "200" ]]
 jq -e '.durationsMinutes == [15,30,60] and .deploymentEnabled == false and ([.plans[].quote.expectedChargeUsd] == [0.09,0.12,0.19])' "$work_dir/trading-catalog.json" >/dev/null
-jq -n '{durationMinutes:15,payer:"0x0000000000000000000000000000000000000001",requestId:"verify-v3-quote"}' > "$work_dir/trading-quote-request.json"
+jq -n --arg requestId "${verification_id}-quote" '{paymentPath:"testnet-usdc",durationMinutes:15,payer:"0x0000000000000000000000000000000000000001",requestId:$requestId}' > "$work_dir/trading-quote-request.json"
 curl -fsSL -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data-binary "@$work_dir/trading-quote-request.json" "$SERVICE_URL/api/v3/trading/quote" -o "$work_dir/trading-quote.json"
 jq -e '.deploymentEnabled == false and .quote.quote.durationMinutes == 15 and .quote.quote.expectedChargeUsd == 0.09 and .quote.quote.authorizationCapUsd == 0.15 and (.quoteToken | length > 20)' "$work_dir/trading-quote.json" >/dev/null
 jq -n --arg quoteToken "$(jq -r .quoteToken "$work_dir/trading-quote.json")" '{quoteToken:$quoteToken}' > "$work_dir/trading-deploy-request.json"
@@ -44,11 +47,12 @@ catalog_status="$(curl -sS -H "x-gcp-x402-session: $session_value" -o "$work_dir
 [[ "$catalog_status" == "200" ]]
 jq -e '.mode == "simulation-only" and .realSettlementEnabled == false and .durationsMinutes == [15,30,60]' "$work_dir/catalog.json" >/dev/null
 
-simulation_status="$(curl -sS -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data '{"productId":"trading.paper.ema","durationMinutes":15,"requestId":"verify-v3"}' -o "$work_dir/simulation.json" -w '%{http_code}' "$SERVICE_URL/api/v3/simulate")"
+jq -n --arg requestId "$verification_id" '{productId:"trading.paper.ema",durationMinutes:15,requestId:$requestId}' > "$work_dir/simulation-request.json"
+simulation_status="$(curl -sS -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data-binary "@$work_dir/simulation-request.json" -o "$work_dir/simulation.json" -w '%{http_code}' "$SERVICE_URL/api/v3/simulate")"
 [[ "$simulation_status" == "200" ]]
 stack_id="$(jq -er '.stackId' "$work_dir/simulation.json")"
-jq -e '. as $root | .simulation == true and .status == "checkout" and .paymentStatus == "not_authorized" and (.embeddedWallet.address | test("^0x[0-9a-f]{40}$")) and ([.resources[].estimatedUsd] | add == $root.quote.estimatedGcpUsd)' "$work_dir/simulation.json" >/dev/null
-curl -fsSL -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data '{"productId":"trading.paper.ema","durationMinutes":15,"requestId":"verify-v3"}' "$SERVICE_URL/api/v3/simulate" -o "$work_dir/simulation-retry.json"
+jq -e '. as $root | .simulation == true and .status == "checkout" and .paymentStatus == "not_authorized" and (.embeddedWallet.address | test("^0x[0-9a-fA-F]{40}$")) and ((([.resources[].estimatedUsd] | add) - $root.quote.estimatedGcpUsd) | fabs < 0.000001)' "$work_dir/simulation.json" >/dev/null
+curl -fsSL -X POST -H "x-gcp-x402-session: $session_value" -H 'content-type: application/json' --data-binary "@$work_dir/simulation-request.json" "$SERVICE_URL/api/v3/simulate" -o "$work_dir/simulation-retry.json"
 jq -e --arg stack "$stack_id" '.stackId == $stack and .reusedRequest == true' "$work_dir/simulation-retry.json" >/dev/null
 
 curl -fsSL -H "x-gcp-x402-session: $session_value" "$SERVICE_URL/api/v3/moonpay" -o "$work_dir/moonpay.json"
