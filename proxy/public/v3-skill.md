@@ -60,13 +60,17 @@ This route demonstrates provider-owned card/Apple Pay/KYC UX. It must stop immed
    PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 unlock
    ```
 
-3. Ask the user to run this in their interactive terminal so they see the top-up screen and control the browser handoff:
+3. Run the handoff yourself first:
 
    ```bash
    PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 topup moonpay <PLAN_ID>
    ```
 
-The command may open only `https://buy-sandbox.moonpay.com`. Once MoonPay login opens, report success and stop. Do not wait for payment, inspect KYC, call `checkout`, advance V3 simulation state, invoke x402, deploy resources, or return a dashboard. Clearly state that MoonPay test assets are on Ethereum Sepolia and do not fund Base Sepolia.
+In an interactive desktop terminal, the command displays the top-up screen and opens the browser after confirmation. In a non-interactive agent runner, it prints JSON containing `checkoutUrl`; return that signed `https://buy-sandbox.moonpay.com` URL as a clickable link so the user does not need another terminal. Once MoonPay login opens, report success and stop. Do not wait for payment, inspect KYC, call `checkout`, advance V3 simulation state, invoke x402, deploy resources, or return a dashboard. Clearly state that MoonPay test assets are on Ethereum Sepolia and do not fund Base Sepolia.
+
+## Network failures
+
+Every successful CLI command must produce the documented output. Blank output is never success. If `curl`, `npx`, or the CLI reports DNS/network failure or times out, request the coding environment's outbound-network permission and rerun the same command. Do not read wallet files as a substitute for a live balance check. For a paid command, reuse only the same ordinary idempotent command after checking `trading-receipts`; never use `--new` to recover connectivity.
 
 ## Safety
 

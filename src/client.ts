@@ -12,6 +12,7 @@ import { networkById, type ClientNetwork } from "./networks.js";
 import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 import { lockedServiceHelp } from "./project-context.js";
 import { clearPendingTradingRequest, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
+import { boundedFetch } from "./network.js";
 
 // Cap what the wrapper will auto-pay without a fresh decision, in USDC base
 // units (6 decimals). A hard backstop against a mispriced/hostile quote.
@@ -21,7 +22,7 @@ const serviceFetch: typeof fetch = (input, init = {}) => {
   const headers = new Headers(init.headers);
   const session = betaSessionToken();
   if (session) headers.set("x-gcp-x402-session", session);
-  return fetch(input, { ...init, headers });
+  return boundedFetch(input, { ...init, headers });
 };
 
 /** Create/load a wallet only for an operation that can actually pay. */
@@ -71,7 +72,7 @@ async function proxyNetwork(): Promise<ClientNetwork> {
 export interface BetaUnlockResult { expiresAt: string; }
 
 export async function unlockService(password: string): Promise<BetaUnlockResult> {
-  const response = await fetch(new URL("/api/beta/unlock", config.proxyUrl), {
+  const response = await boundedFetch(new URL("/api/beta/unlock", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ password }),
@@ -95,7 +96,7 @@ export interface WalletInfo {
 export async function walletInfo(): Promise<WalletInfo> {
   const account = getAccount();
   const net = await proxyNetwork();
-  const pub = createPublicClient({ transport: http(net.rpcUrl) });
+  const pub = createPublicClient({ transport: http(net.rpcUrl, { timeout: 10_000, retryCount: 0 }) });
 
   let balance = "unknown";
   try {
