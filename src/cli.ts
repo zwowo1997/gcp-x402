@@ -319,7 +319,8 @@ async function runSandbox(argv: string[]): Promise<number> {
 function launchCodex(args: string[]): number {
   const executable = process.argv[1];
   ensureNativeStateDirectory();
-  const result = spawnSync("codex", codexLaunchArguments(executable, args), { stdio: "inherit", env: nativeSessionEnvironment() });
+  const env = nativeSessionEnvironment();
+  const result = spawnSync("codex", codexLaunchArguments(executable, args, env.PROXY_URL), { stdio: "inherit", env });
   if (result.error) throw new Error(`Could not launch Codex: ${result.error.message}`);
   return result.status ?? 1;
 }

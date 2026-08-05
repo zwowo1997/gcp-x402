@@ -41,11 +41,15 @@ export function nativeSessionEnvironment(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
-export function codexLaunchArguments(executable: string, args: string[]): string[] {
-  return [
+export function codexLaunchArguments(executable: string, args: string[], proxyUrl?: string): string[] {
+  const config = [
     "-c", `mcp_servers.gcp_x402.command=${JSON.stringify(process.execPath)}`,
     "-c", `mcp_servers.gcp_x402.args=${JSON.stringify([executable])}`,
     "-c", `mcp_servers.gcp_x402.enabled_tools=${JSON.stringify(NATIVE_MCP_TOOLS)}`,
-    ...args,
   ];
+  // Codex may launch stdio MCP children with a narrowed environment. Pin the
+  // selected hosted service in the MCP configuration rather than relying on
+  // the shell's PROXY_URL inheritance.
+  if (proxyUrl) config.push("-c", `mcp_servers.gcp_x402.env.PROXY_URL=${JSON.stringify(proxyUrl)}`);
+  return [...config, ...args];
 }

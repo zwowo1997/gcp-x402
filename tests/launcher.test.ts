@@ -18,9 +18,10 @@ test("only complete V3 receipts can suppress a repeated paid deployment", () => 
 });
 
 test("native Codex session injects the unified V3 and MoonPay-capable MCP", () => {
-  const args = codexLaunchArguments("/opt/gcp-x402/dist/index.js", ["--model", "test"]);
+  const args = codexLaunchArguments("/opt/gcp-x402/dist/index.js", ["--model", "test"], "https://preview.example.run.app");
   const rendered = args.join(" ");
   for (const tool of ["unlock_service", "v3_trading_catalog", "v3_trading_quote", "v3_trading_deploy", "moonpay_showcase", "sandbox_checkout"]) assert.match(rendered, new RegExp(tool));
+  assert.match(rendered, /mcp_servers\.gcp_x402\.env\.PROXY_URL=.*preview\.example\.run\.app/);
   assert.deepEqual(args.slice(-2), ["--model", "test"]);
   assert.ok(NATIVE_MCP_TOOLS.includes("wallet_info"));
 });
