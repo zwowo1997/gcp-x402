@@ -8,10 +8,10 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const locked = requireBetaSession(req); if (locked) return locked;
-  let body: { durationMinutes?: number; payer?: string; requestId?: string; strategy?: Partial<V3PaperStrategyConfig> };
+  let body: { paymentPath?: "testnet-usdc"; durationMinutes?: number; payer?: string; requestId?: string; strategy?: Partial<V3PaperStrategyConfig> };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Body must be JSON." }, { status: 400 }); }
-  if (!isV3Duration(Number(body.durationMinutes)) || typeof body.payer !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(body.payer) || (body.requestId !== undefined && !/^[a-zA-Z0-9-]{1,128}$/.test(body.requestId))) {
-    return NextResponse.json({ error: "Expected durationMinutes (15, 30, or 60), a payer address, and an optional safe requestId." }, { status: 400 });
+  if (body.paymentPath !== "testnet-usdc" || !isV3Duration(Number(body.durationMinutes)) || typeof body.payer !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(body.payer) || (body.requestId !== undefined && !/^[a-zA-Z0-9-]{1,128}$/.test(body.requestId))) {
+    return NextResponse.json({ error: "Choose the Base Sepolia testnet-USDC path, then provide durationMinutes (15, 30, or 60), a payer address, and an optional safe requestId." }, { status: 400 });
   }
   try {
     const payload = createV3TradingQuotePayload({

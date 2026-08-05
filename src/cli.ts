@@ -42,8 +42,8 @@ Commands:
   v3-trading-catalog     Show real Base Sepolia 15/30/60-minute paper-stack prices.
   v3-trading-quote <15|30|60>
                          Create a signed, non-paying quote for the selected lease.
-  v3-trading-deploy <quote-id> <quote-token> <approved-price>
-                         Deploy exactly the previously displayed signed quote.
+  v3-trading-deploy <quote-token>
+                         Deploy the previously displayed signed quote.
   v3-simulate <product> <15|30|60>
                          Preview AP2-derived mandate, Coinbase sandbox handoff, and resources.
   v3-status <stack-id>   Inspect a protected checkout simulation.
@@ -61,6 +61,7 @@ Commands:
   receipts               List local sandbox checkout receipts without secrets.
   debugger <checkout-id> Print the trace and dashboard URL for a sandbox checkout.
   codex                  Launch Codex with the gcp-x402 MCP server injected for this session.
+  start                  Initialize private state and launch that native Codex session in one command.
   help                   Show this message.
 
 Only bigquery-public-data tables are queryable; read-only (no DML/DDL).`;
@@ -146,6 +147,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case "receipts":
       console.log(JSON.stringify(listSandboxReceipts().map(sandboxReceiptSummary), null, 2));
       return 0;
+    case "start":
     case "codex":
       return launchCodex(argv.slice(1));
     case "unlock": {
@@ -254,15 +256,13 @@ export async function runCli(argv: string[]): Promise<number> {
     case "v3-trading-quote": {
       const durationMinutes = Number(argv[1]);
       if (![15, 30, 60].includes(durationMinutes)) return usageError("v3-trading-quote <15|30|60>");
-      console.log(JSON.stringify(await quoteV3PaperTrading({ durationMinutes: durationMinutes as 15 | 30 | 60 }), null, 2));
+      console.log(JSON.stringify(await quoteV3PaperTrading({ paymentPath: "testnet-usdc", durationMinutes: durationMinutes as 15 | 30 | 60 }), null, 2));
       return 0;
     }
     case "v3-trading-deploy": {
-      const [quoteId, quoteToken, approved] = argv.slice(1);
-      const quoted = quoteToken ? decodeV3QuoteForCli(quoteToken) : null;
-      const approvedExpectedChargeUsd = Number(approved);
-      if (!quoteId || !quoteToken || !quoted || !Number.isFinite(approvedExpectedChargeUsd)) return usageError("v3-trading-deploy <quote-id> <quote-token> <approved-price>");
-      console.log(JSON.stringify(await deployV3PaperTrading({ quoteId, quoteToken, durationMinutes: quoted.durationMinutes, approvedExpectedChargeUsd }), null, 2));
+      const quoteToken = argv[1];
+      if (!quoteToken || !decodeV3QuoteForCli(quoteToken)) return usageError("v3-trading-deploy <quote-token>");
+      console.log(JSON.stringify(await deployV3PaperTrading({ quoteToken, userApproved: true }), null, 2));
       return 0;
     }
     case "v3-simulate": {
