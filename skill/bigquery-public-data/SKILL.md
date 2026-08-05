@@ -2,15 +2,18 @@
 name: gcp-x402
 description: >-
   Query allowlisted Google BigQuery public datasets, deploy a tightly scoped
-  temporary GCP VM or Cloud Storage bucket, or create a paper-only Hyperliquid
-  BTC perpetual trading infrastructure through gcp-x402, without the user having
-  a GCP account. Use when a user asks to analyze public data, says things like
+  temporary GCP VM or Cloud Storage bucket through gcp-x402, without the user
+  having a GCP account. Use when a user asks to analyze public data, says things like
   "deploy a storage bucket without GCP", asks to inspect, create, check, or delete
-  a paid demo GCP resource, or asks to set up automated/paper trading infrastructure
-  on GCP and pay stablecoins. Payments use USDC over x402 on Base Sepolia.
+  a paid demo VM or storage resource. Do not use this legacy skill for Hyperliquid,
+  paper-trading stacks, duration-aware quotes, or MoonPay; those require the
+  gcp-x402-v3-preview native MCP journey. Payments use USDC over x402 on Base Sepolia.
 ---
 
 # gcp-x402: paid BigQuery and demo GCP resources
+
+For any Hyperliquid or paper-trading request, stop and use `gcp-x402-v3-preview`.
+Do not run the legacy `trading-*` commands as a fallback.
 
 Use the hosted service at `https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app`.
 It accepts USDC payments through x402 on **Base Sepolia** and runs the paid work
