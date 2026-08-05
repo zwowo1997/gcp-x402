@@ -225,6 +225,8 @@ export async function listDatasets(): Promise<unknown> {
 
 export type V3ProductId = "trading.paper.ema" | "vm.small" | "storage.small";
 export type V3DurationMinutes = 15 | 30 | 60;
+/** A V3 paper-stack quote is available only after this route is chosen. */
+export type V3PaymentPath = "testnet-usdc";
 export type V3SimulationAction = "approve" | "fund" | "provision" | "stop" | "resume" | "shutdown" | "cancel";
 export interface V3SimulationResult { stackId: string; dashboardPath: string; dashboardUrl?: string; [key: string]: unknown; }
 export interface V3TradingCatalogResult {
@@ -276,7 +278,7 @@ export async function v3TradingCatalog(): Promise<V3TradingCatalogResult> {
   return res.json() as Promise<V3TradingCatalogResult>;
 }
 
-export async function quoteV3PaperTrading(input: { durationMinutes: V3DurationMinutes; strategy?: PaperTradingConfig; requestId?: string }): Promise<V3TradingQuoteResult> {
+export async function quoteV3PaperTrading(input: { paymentPath: V3PaymentPath; durationMinutes: V3DurationMinutes; strategy?: PaperTradingConfig; requestId?: string }): Promise<V3TradingQuoteResult> {
   const res = await serviceFetch(new URL("/api/v3/trading/quote", config.proxyUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -286,11 +288,9 @@ export async function quoteV3PaperTrading(input: { durationMinutes: V3DurationMi
   return res.json() as Promise<V3TradingQuoteResult>;
 }
 
-export async function deployV3PaperTrading(input: { quoteToken: string; quoteId: string; durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number }): Promise<V3TradingDeployment> {
+export async function deployV3PaperTrading(input: { quoteToken: string; userApproved: true }): Promise<V3TradingDeployment> {
   const quoted = decodeV3TradingQuoteToken(input.quoteToken);
-  if (!quoted || quoted.quoteId !== input.quoteId || quoted.quote.durationMinutes !== input.durationMinutes) throw new Error("Deployment must use the exact signed quote shown to the user.");
-  const expected = quoted.quote.expectedChargeUsd;
-  if (!Number.isFinite(input.approvedExpectedChargeUsd) || Math.abs(input.approvedExpectedChargeUsd - expected) > 0.000001) throw new Error(`Fresh approval must exactly match quote ${input.quoteId} ($${expected.toFixed(2)} testnet USDC).`);
+  if (!quoted) throw new Error("Deployment must use the exact signed quote shown to the user.");
   // The signed quote, not a second set of deploy parameters, is the complete
   // source of truth for idempotency and strategy configuration.
   const requestInput = { version: "v3", quoteId: quoted.quoteId, durationMinutes: quoted.quote.durationMinutes, strategy: quoted.strategy };

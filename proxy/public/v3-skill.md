@@ -7,20 +7,25 @@ description: Build a temporary paper-only Hyperliquid BTC stack on operator-owne
 
 Use the `gcp_x402` MCP tools for the entire journey. Do not orchestrate `npx` subprocesses after the native session starts.
 
-If `v3_trading_catalog` is unavailable, explain that an installed skill cannot inject an MCP into an already-running coding-agent process. Ask the user to run this once in the same terminal, then continue in the Codex session it opens:
+## One-command start
+
+An installed skill cannot add MCP tools to an already-running agent. If `v3_trading_catalog` is unavailable, give the user this **single command** in one terminal; it initializes private state and opens the correctly configured Codex session:
 
 ```bash
-npx -y github:zwowo1997/gcp-x402 setup
-PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 codex
+PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 start
 ```
 
-This launcher injects only the allowlisted gcp-x402 tools and uses private machine-level state across project directories. Never claim the existing process can gain tools dynamically.
+Do not first ask them to install a skill, run `setup`, or copy a second command. Continue only in the new Codex session it opens. The launcher pins this hosted origin in the MCP configuration and uses machine-level private state across project directories.
 
 ## Start
 
 If the service is locked, ask the user for the operator-provided beta password and pass it directly to `unlock_service`. Never save, echo, or put the password in a shell command.
 
-Offer exactly two routes:
+When the user first expresses an intent to build or deploy, ask this question **before** calling `wallet_info`, a catalog, or a quote. Do not ask it merely because the skill was installed:
+
+> Which payment path would you like? **Testnet USDC** deploys the paper stack with Base Sepolia test tokens. **MoonPay sandbox** opens the hosted card/Apple Pay showcase and stops before payment or deployment.
+
+If the user already chose a route in their intent, acknowledge that choice and do not ask again. The two routes are:
 
 1. Base Sepolia testnet USDC — end-to-end temporary GCP provisioning.
 2. MoonPay sandbox — hosted card/Apple Pay/KYC UX showcase; stops at the provider page.
@@ -31,7 +36,7 @@ Never combine the routes or treat MoonPay completion as deployment approval.
 
 1. Call `wallet_info` and `v3_trading_catalog`.
 2. Let the user choose 15, 30, or 60 minutes. Default to 15 minutes only if they ask for the cheapest/shortest demo.
-3. Call `v3_trading_quote` with the duration and requested paper-strategy limits.
+3. Call `v3_trading_quote` with `paymentPath: "testnet-usdc"`, the duration, and requested paper-strategy limits.
 4. Show:
    - estimated GCP usage;
    - exact expected testnet-USDC charge;
@@ -39,8 +44,8 @@ Never combine the routes or treat MoonPay completion as deployment approval.
    - unused allowance, which is never transferred;
    - expiry and every planned GCP service.
 5. If wallet funds are insufficient, ask the user to fund the displayed address with Base Sepolia USDC. Never request a private key.
-6. Ask once for explicit approval of that quote's `quoteId`, exact `expectedChargeUsd`, duration, and paper-only stack. A generic `$5` approval is invalid.
-7. Only after approval, call `v3_trading_deploy` once with the exact `quoteToken`, `quoteId`, duration, and approved amount returned by that quote. Never request a replacement quote after approval.
+6. Ask a plain-language confirmation such as: “This paper-only stack runs for 15 minutes and costs exactly 0.09 testnet USDC. Deploy it?” A clear affirmative—“yes”, “approve”, “looks good”, or “go ahead”—approves that one fresh quote. Never require the user to repeat a quote ID, amount, duration, or scripted sentence. If there is no single fresh quote immediately preceding the response, clarify instead.
+7. Only after that affirmative, call `v3_trading_deploy` once with the `quoteToken` and `userApproved: true`. Keep the token and exact quote fields internal. Never request a replacement quote after approval.
 
 The client preserves one request ID across uncertain outcomes. Never create a fresh request or invoke a legacy `trading-deploy` fallback. On success, use `v3_trading_status` and `v3_trading_receipts` for recovery, then report the dashboard, lease expiry, settled amount, unused allowance, and exact GCP resource/cost rows.
 
