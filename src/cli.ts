@@ -14,7 +14,7 @@ import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceipt
 import { paymentProviderInfo } from "./payment-provider.js";
 import { spawnSync } from "node:child_process";
 import { openExternalUrl, renderMoonPayTopup } from "./topup.js";
-import { codexLaunchArguments, ensureNativeStateDirectory, nativeSessionEnvironment } from "./launcher.js";
+import { codexLaunchArguments, ensureNativeStateDirectory, isNestedCodexSession, nativeSessionEnvironment, NESTED_CODEX_START_ERROR } from "./launcher.js";
 
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
 
@@ -149,6 +149,10 @@ export async function runCli(argv: string[]): Promise<number> {
       return 0;
     case "start":
     case "codex":
+      if (isNestedCodexSession()) {
+        console.error(NESTED_CODEX_START_ERROR);
+        return 2;
+      }
       return launchCodex(argv.slice(1));
     case "unlock": {
       const password = await readHiddenPassword();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codexLaunchArguments, nativeSessionEnvironment, nativeStateDirectory, NATIVE_MCP_TOOLS, NATIVE_SESSION_INSTRUCTIONS } from "../src/launcher.js";
+import { codexLaunchArguments, isNestedCodexSession, nativeSessionEnvironment, nativeStateDirectory, NATIVE_MCP_TOOLS, NATIVE_SESSION_INSTRUCTIONS, NESTED_CODEX_START_ERROR } from "../src/launcher.js";
 import { isV3TradingReceipt } from "../src/trading-receipt.js";
 
 test("native launcher uses one explicit machine-level state directory", () => {
@@ -29,4 +29,12 @@ test("native Codex session injects the unified V3 and MoonPay-capable MCP", () =
   assert.match(NATIVE_SESSION_INSTRUCTIONS, /MoonPay sandbox/);
   assert.deepEqual(args.slice(-2), ["--model", "test"]);
   assert.ok(NATIVE_MCP_TOOLS.includes("wallet_info"));
+});
+
+test("launcher refuses to create an unusable nested Codex session", () => {
+  assert.equal(isNestedCodexSession({ CODEX_THREAD_ID: "thread-1" }), true);
+  assert.equal(isNestedCodexSession({ CODEX_THREAD_ID: "thread-1", GCP_X402_ALLOW_NESTED_CODEX: "1" }), false);
+  assert.equal(isNestedCodexSession({}), false);
+  assert.match(NESTED_CODEX_START_ERROR, /hidden child session/);
+  assert.match(NESTED_CODEX_START_ERROR, /Settings > MCP servers/);
 });

@@ -17,6 +17,8 @@ PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gc
 
 Do not first ask them to install a skill, run `setup`, or copy a second command. Continue only in the new Codex session it opens. The launcher pins this hosted origin in the MCP configuration and uses machine-level private state across project directories.
 
+Never execute `gcp-x402 start` from inside the current coding-agent chat or through its command runner. MCP tools are fixed when that chat starts; running the launcher there creates a separate child Codex session that the current conversation cannot use. Give the command to the user to run in an outer terminal and stop. For Codex Desktop, direct the user to **Settings > MCP servers**, configure the `gcp_x402` STDIO server, save, and restart the app. Never claim a background or nested launcher upgraded the current chat.
+
 ## Start
 
 If the service is locked, ask the user for the operator-provided beta password and pass it directly to `unlock_service`. Never save, echo, or put the password in a shell command.
