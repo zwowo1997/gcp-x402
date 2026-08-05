@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest, ctx: { params: Promise<{ stackId: string }> }) {
   const stack = await getTradingStack((await ctx.params).stackId);
   if (!stack) return withDashboardCors(req, NextResponse.json({ error: "Trading stack not found." }, { status: 404 }));
-  if (!hasDashboardAccess(stack.id, stack.payer, req.headers.get("x-dashboard-access"))) {
+  if (!hasDashboardAccess(stack.id, stack.payer, req.headers.get("x-dashboard-access") ?? req.headers.get("x-resource-capability"))) {
     const locked = requireBetaSession(req); if (locked) return withDashboardCors(req, locked);
     if (!hasResourceCapability(stack.id, stack.payer, req.headers.get("x-resource-capability"))) return withDashboardCors(req, NextResponse.json({ error: "Trading stack capability required." }, { status: 401 }));
   }
