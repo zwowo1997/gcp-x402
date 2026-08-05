@@ -39,10 +39,10 @@ Never combine the routes or treat MoonPay completion as deployment approval.
    - unused allowance, which is never transferred;
    - expiry and every planned GCP service.
 5. If wallet funds are insufficient, ask the user to fund the displayed address with Base Sepolia USDC. Never request a private key.
-6. Ask once for explicit approval of the exact `expectedChargeUsd`, duration, and paper-only stack. A generic `$5` approval is invalid.
-7. Only after approval, call `v3_trading_deploy` once with the same duration, strategy, and exact approved amount.
+6. Ask once for explicit approval of that quote's `quoteId`, exact `expectedChargeUsd`, duration, and paper-only stack. A generic `$5` approval is invalid.
+7. Only after approval, call `v3_trading_deploy` once with the exact `quoteToken`, `quoteId`, duration, and approved amount returned by that quote. Never request a replacement quote after approval.
 
-The client preserves one request ID across uncertain outcomes. Never create a fresh request or invoke a legacy `trading-deploy` fallback. On success, report the dashboard, lease expiry, settled amount, unused allowance, and exact GCP resource/cost rows.
+The client preserves one request ID across uncertain outcomes. Never create a fresh request or invoke a legacy `trading-deploy` fallback. On success, use `v3_trading_status` and `v3_trading_receipts` for recovery, then report the dashboard, lease expiry, settled amount, unused allowance, and exact GCP resource/cost rows.
 
 ## MoonPay route
 

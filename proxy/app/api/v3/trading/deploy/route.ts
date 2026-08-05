@@ -85,21 +85,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Unable to schedule safe cleanup: ${(error as Error).message}` }, { status: 502 });
   }
   await recordTransaction({ id: `v3-trading-${stack.id}`, payer: stack.payer, service: "trading", operation: "deploy_paper_v3", status: "verified", requestedAmountUsd: quote.quote.expectedChargeUsd, resourceId: stack.id, createdAt: now.toISOString() });
+  let settledStack: TradingStackRecord | undefined;
+  let settledPayment: Awaited<ReturnType<typeof settle>> | undefined;
   try {
     await saveTradingStack({ ...stack, status: "provisioning", updatedAt: new Date().toISOString() });
     await createTradingStackResources(stack.resources, stack.config);
-    let settlement;
-    try { settlement = await settle(payment, requirements); }
+    try { settledPayment = await settle(payment, requirements); }
     catch (error) { await deleteTradingStackResources(stack.resources).catch(() => undefined); throw error; }
-    if (!settlement.success) { await deleteTradingStackResources(stack.resources).catch(() => undefined); throw new Error(settlement.errorReason ?? "Settlement failed"); }
-    const active = { ...stack, status: "running" as const, settledAmountUsd: quote.quote.expectedChargeUsd, updatedAt: new Date().toISOString() };
-    await saveTradingStack(active);
+    if (!settledPayment.success) { await deleteTradingStackResources(stack.resources).catch(() => undefined); throw new Error(settledPayment.errorReason ?? "Settlement failed"); }
+    settledStack = { ...stack, status: "running" as const, settledAmountUsd: quote.quote.expectedChargeUsd, updatedAt: new Date().toISOString() };
+    await saveTradingStack(settledStack);
     await addTradingEvent({ id: randomUUID(), stackId: stack.id, type: "provisioned", message: `${quote.quote.durationMinutes}-minute Tokyo paper stack provisioned; no live exchange order can be placed.`, createdAt: new Date().toISOString() });
     await recordTransaction({ id: `v3-trading-${stack.id}`, payer: stack.payer, service: "trading", operation: "deploy_paper_v3", status: "settled", requestedAmountUsd: quote.quote.expectedChargeUsd, settledAmountUsd: quote.quote.expectedChargeUsd, resourceId: stack.id, createdAt: now.toISOString(), completedAt: new Date().toISOString() });
-    const response = responseFor(active, req.headers.get(BETA_SESSION_HEADER) ?? "");
-    response.headers.set("X-PAYMENT-RESPONSE", encodeSettlementHeader(settlement));
+    const response = responseFor(settledStack, req.headers.get(BETA_SESSION_HEADER) ?? "");
+    response.headers.set("X-PAYMENT-RESPONSE", encodeSettlementHeader(settledPayment));
     return response;
   } catch (error) {
+    if (settledStack && settledPayment?.success) {
+      await saveTradingStack(settledStack).catch(() => undefined);
+      const response = responseFor(settledStack, req.headers.get(BETA_SESSION_HEADER) ?? "");
+      response.headers.set("X-PAYMENT-RESPONSE", encodeSettlementHeader(settledPayment));
+      response.headers.set("X-GCP-X402-RECOVERY", "post-settlement bookkeeping incomplete; retain this receipt and retry status later");
+      return response;
+    }
     const failed = { ...stack, status: "failed" as const, error: (error as Error).message, updatedAt: new Date().toISOString() };
     await saveTradingStack(failed);
     await addTradingEvent({ id: randomUUID(), stackId: stack.id, type: "failed", message: failed.error ?? "Provisioning failed.", createdAt: new Date().toISOString() });

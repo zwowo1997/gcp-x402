@@ -27,6 +27,7 @@ test("cost visibility lists every GCP product used by the stack", async () => {
     const quoted = tradingCostSummary(resources, durationMinutes, durationMinutes === 15 ? 0.09 : durationMinutes === 30 ? 0.12 : 0.19);
     assert.match(quoted.estimateBasis, new RegExp(`${durationMinutes}-minute`));
     assert.ok(quoted.x402PaymentUsd < 5);
+    assert.equal(quoted.estimatedGcpUsageUsd, Number(tradingCostBreakdown(resources, durationMinutes).reduce((sum, item) => sum + item.estimatedLeaseUsd, 0).toFixed(6)));
   }
 });
 

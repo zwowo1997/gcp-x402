@@ -238,6 +238,7 @@ export interface V3TradingCatalogResult {
 }
 export interface V3TradingQuoteResult {
   quote: {
+    quoteId: string;
     requestId: string;
     payer: string;
     expiresAt: string;
@@ -285,19 +286,17 @@ export async function quoteV3PaperTrading(input: { durationMinutes: V3DurationMi
   return res.json() as Promise<V3TradingQuoteResult>;
 }
 
-export async function deployV3PaperTrading(input: { durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number; strategy?: PaperTradingConfig }): Promise<V3TradingDeployment> {
-  const requestInput = { version: "v3", durationMinutes: input.durationMinutes, strategy: input.strategy ?? {} };
+export async function deployV3PaperTrading(input: { quoteToken: string; quoteId: string; durationMinutes: V3DurationMinutes; approvedExpectedChargeUsd: number; strategy?: PaperTradingConfig }): Promise<V3TradingDeployment> {
+  const requestInput = { version: "v3", quoteId: input.quoteId, durationMinutes: input.durationMinutes, strategy: input.strategy ?? {} };
   const existing = recentTradingReceipt(requestInput);
   if (existing && isV3TradingReceipt(existing)) return { ...existing, reusedReceipt: true, reuseReason: "Returned the recent matching V3 receipt instead of creating another paid stack." };
   const requestId = pendingTradingRequestId(requestInput, randomUUID);
-  const signed = await quoteV3PaperTrading({ durationMinutes: input.durationMinutes, strategy: input.strategy, requestId });
-  if (!signed.deploymentEnabled) throw new Error("V3 testnet deployment is disabled by the provider; no payment was attempted.");
-  const expected = signed.quote.quote.expectedChargeUsd;
-  if (!Number.isFinite(input.approvedExpectedChargeUsd) || Math.abs(input.approvedExpectedChargeUsd - expected) > 0.000001) {
-    throw new Error(`Fresh approval must exactly match the current expected charge ($${expected.toFixed(2)} testnet USDC).`);
-  }
+  const quoted = decodeV3TradingQuoteToken(input.quoteToken);
+  if (!quoted || quoted.quoteId !== input.quoteId || quoted.quote.durationMinutes !== input.durationMinutes) throw new Error("Deployment must use the exact signed quote shown to the user.");
+  const expected = quoted.quote.expectedChargeUsd;
+  if (!Number.isFinite(input.approvedExpectedChargeUsd) || Math.abs(input.approvedExpectedChargeUsd - expected) > 0.000001) throw new Error(`Fresh approval must exactly match quote ${input.quoteId} ($${expected.toFixed(2)} testnet USDC).`);
   const res = await paidFetch(new URL("/api/v3/trading/deploy", config.proxyUrl), {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteToken: signed.quoteToken }),
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteToken: input.quoteToken }),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -309,6 +308,27 @@ export async function deployV3PaperTrading(input: { durationMinutes: V3DurationM
   saveTradingReceipt({ ...deployment, maxPriceUsd: deployment.authorizationCapUsd, requestId, configJson: tradingConfigJson(requestInput), savedAt: new Date().toISOString() });
   clearPendingTradingRequest(requestId);
   return deployment;
+}
+
+export async function v3TradingStatus(stackId: string, capability: string): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/v3/trading/${encodeURIComponent(stackId)}`, config.proxyUrl), { headers: { "x-resource-capability": capability } });
+  if (!res.ok) throw await serviceError(res, "V3 trading status");
+  return res.json();
+}
+
+export async function controlV3PaperTrading(stackId: string, capability: string, control: "start" | "stop" | "resume" | "shutdown"): Promise<unknown> {
+  const res = await serviceFetch(new URL(`/api/v3/trading/${encodeURIComponent(stackId)}/control`, config.proxyUrl), { method: "POST", headers: { "content-type": "application/json", "x-resource-capability": capability }, body: JSON.stringify({ control }) });
+  if (!res.ok) throw await serviceError(res, "V3 trading control");
+  return res.json();
+}
+
+/** Read only the display fields from a signed server quote; the server verifies it before payment. */
+function decodeV3TradingQuoteToken(token: string): V3TradingQuoteResult["quote"] | null {
+  try {
+    const body = token.slice(0, token.lastIndexOf("."));
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as V3TradingQuoteResult["quote"];
+    return parsed?.quoteId && parsed?.quote ? parsed : null;
+  } catch { return null; }
 }
 
 function v3DashboardUrl(path: string): string | undefined {

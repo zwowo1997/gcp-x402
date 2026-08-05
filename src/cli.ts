@@ -7,6 +7,8 @@
 
 import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation, moonPayAvailability, moonPayCheckout, v3TradingCatalog, quoteV3PaperTrading, deployV3PaperTrading } from "./client.js";
 import { config } from "./config.js";
+import { betaSessionToken } from "./beta-session.js";
+import { dirname } from "node:path";
 import { getTradingReceipt, listTradingReceipts } from "./trading-receipt.js";
 import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, sandboxReceiptSummary, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
@@ -40,14 +42,16 @@ Commands:
   v3-trading-catalog     Show real Base Sepolia 15/30/60-minute paper-stack prices.
   v3-trading-quote <15|30|60>
                          Create a signed, non-paying quote for the selected lease.
-  v3-trading-deploy <15|30|60> <approved-price>
-                         Deploy once after approval of the exact quoted testnet-USDC charge.
+  v3-trading-deploy <quote-id> <quote-token> <approved-price>
+                         Deploy exactly the previously displayed signed quote.
   v3-simulate <product> <15|30|60>
                          Preview AP2-derived mandate, Coinbase sandbox handoff, and resources.
   v3-status <stack-id>   Inspect a protected checkout simulation.
   v3-control <stack-id> <approve|fund|provision|stop|resume|shutdown|cancel>
                          Advance or control a protected checkout simulation.
   setup                  Initialize private machine-level state for the native MCP journey.
+  whoami                 Show native wallet, beta-session, and proxy state without paying.
+  doctor                 Check proxy reachability and the V3 catalog without paying.
   setup --sandbox        Create a local, test-only Base Sepolia wallet and show the safe workflow.
   sandbox catalog        Browse the safe GCP sandbox catalog and price plans.
   plan "<intent>"        Turn a natural-language request into one allowlisted sandbox plan.
@@ -153,6 +157,16 @@ export async function runCli(argv: string[]): Promise<number> {
       console.log(`session_file: ${config.betaSessionFile}`);
       return 0;
     }
+    case "whoami": {
+      const info = await walletInfo();
+      console.log(JSON.stringify({ wallet: info, betaSessionActive: Boolean(betaSessionToken()), stateDirectory: dirname(config.walletFile), proxyUrl: config.proxyUrl }, null, 2));
+      return 0;
+    }
+    case "doctor": {
+      const catalog = await v3TradingCatalog();
+      console.log(JSON.stringify({ proxyUrl: config.proxyUrl, reachable: true, deploymentEnabled: catalog.deploymentEnabled, durationsMinutes: catalog.durationsMinutes, safety: catalog.safety }, null, 2));
+      return 0;
+    }
     case "wallet": {
       const info = await walletInfo();
       console.log(`address:      ${info.address}`);
@@ -244,10 +258,11 @@ export async function runCli(argv: string[]): Promise<number> {
       return 0;
     }
     case "v3-trading-deploy": {
-      const durationMinutes = Number(argv[1]);
-      const approvedExpectedChargeUsd = Number(argv[2]);
-      if (![15, 30, 60].includes(durationMinutes) || !Number.isFinite(approvedExpectedChargeUsd)) return usageError("v3-trading-deploy <15|30|60> <approved-price>");
-      console.log(JSON.stringify(await deployV3PaperTrading({ durationMinutes: durationMinutes as 15 | 30 | 60, approvedExpectedChargeUsd }), null, 2));
+      const [quoteId, quoteToken, approved] = argv.slice(1);
+      const quoted = quoteToken ? decodeV3QuoteForCli(quoteToken) : null;
+      const approvedExpectedChargeUsd = Number(approved);
+      if (!quoteId || !quoteToken || !quoted || !Number.isFinite(approvedExpectedChargeUsd)) return usageError("v3-trading-deploy <quote-id> <quote-token> <approved-price>");
+      console.log(JSON.stringify(await deployV3PaperTrading({ quoteId, quoteToken, durationMinutes: quoted.durationMinutes, approvedExpectedChargeUsd }), null, 2));
       return 0;
     }
     case "v3-simulate": {
@@ -357,4 +372,11 @@ async function waitForEnter(): Promise<void> {
 function usageError(usage: string): number {
   console.error(`usage: ${usage}`);
   return 2;
+}
+
+function decodeV3QuoteForCli(token: string): { durationMinutes: 15 | 30 | 60 } | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.slice(0, token.lastIndexOf(".")), "base64url").toString("utf8")) as { quote?: { durationMinutes?: number } };
+    return [15, 30, 60].includes(payload.quote?.durationMinutes ?? 0) ? { durationMinutes: payload.quote!.durationMinutes as 15 | 30 | 60 } : null;
+  } catch { return null; }
 }

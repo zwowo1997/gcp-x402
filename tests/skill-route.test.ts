@@ -25,6 +25,8 @@ test("dedicated preview skill uses the unified native MCP instead of V2 fallback
   assert.match(source, /v3_trading_catalog/);
   assert.match(source, /v3_trading_quote/);
   assert.match(source, /v3_trading_deploy/);
+  assert.match(source, /exact `quoteToken`, `quoteId`/);
+  assert.match(source, /Never request a replacement quote after approval/);
   assert.match(source, /Do not use V2 commands as a fallback/);
 });
 
