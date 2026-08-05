@@ -12,10 +12,13 @@ import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceipt
 import { paymentProviderInfo } from "./payment-provider.js";
 import { openExternalUrl } from "./topup.js";
 import { listTradingReceipts, publicTradingReceipt } from "./trading-receipt.js";
+import { NATIVE_SESSION_INSTRUCTIONS } from "./launcher.js";
 
 const server = new McpServer({
   name: "gcp-x402",
   version: "0.1.0",
+}, {
+  instructions: NATIVE_SESSION_INSTRUCTIONS,
 });
 
 server.registerTool(

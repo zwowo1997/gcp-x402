@@ -37,6 +37,8 @@ test("dedicated preview skill uses the unified native MCP instead of V2 fallback
   assert.match(source, /Never require the user to repeat a quote ID/);
   assert.match(source, /Never request a replacement quote after approval/);
   assert.match(source, /Do not use V2 commands as a fallback/);
+  assert.match(source, /Never execute `gcp-x402 start` from inside the current coding-agent chat/);
+  assert.match(source, /Settings > MCP servers/);
 });
 
 test("v3 preview skill keeps unlock and MoonPay inside the native session", async () => {
