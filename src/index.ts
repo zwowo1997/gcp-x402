@@ -5,11 +5,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation, moonPayAvailability, moonPayCheckout } from "./client.js";
+import { estimate, query, listDatasets, walletInfo, provisionCatalog, provisionResource, provisionStatus, provisionDelete, tradingCatalog, deployPaperTrading, tradingStatus, controlPaperTrading, unlockService, simulateV3Deployment, v3Catalog, v3SimulationStatus, controlV3Simulation, moonPayAvailability, moonPayCheckout, v3TradingCatalog, quoteV3PaperTrading, deployV3PaperTrading } from "./client.js";
 import { config } from "./config.js";
 import { runCli } from "./cli.js";
 import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceiptForPlan, listSandboxReceipts, sandboxAccount, saveSandboxReceipt, updateSandboxReceipt } from "./sandbox.js";
 import { paymentProviderInfo } from "./payment-provider.js";
+import { openExternalUrl } from "./topup.js";
 
 const server = new McpServer({
   name: "gcp-x402",
@@ -68,6 +69,9 @@ server.registerTool("trading_status", { title: "Inspect a paper-trading stack", 
 server.registerTool("trading_control", { title: "Control a paper-trading stack", description: "Start, stop, resume, or permanently shut down a paper-trading stack. Stop prevents new simulated orders. Shutdown deletes its dedicated runtime resources.", inputSchema: { stackId: z.string(), capability: z.string(), control: z.enum(["start", "stop", "resume", "shutdown"]) } }, async ({ stackId, capability, control }) => ({ content: [{ type: "text", text: JSON.stringify(await controlPaperTrading(stackId, capability, control), null, 2) }] }));
 
 server.registerTool("v3_catalog", { title: "Inspect v3 sandbox payment plans", description: "Show duration-aware AP2-derived, x402-v2-upto payment plans. The private-beta endpoint is simulation-only: it cannot transfer funds or create cloud resources.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await v3Catalog(), null, 2) }] }));
+server.registerTool("v3_trading_catalog", { title: "Browse real V3 paper-stack prices", description: "Show 15, 30, and 60-minute Tokyo paper-trading plans, their estimated GCP usage, exact expected testnet-USDC charge, authorization ceiling, and whether deployment is enabled. This does not pay or provision.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await v3TradingCatalog(), null, 2) }] }));
+server.registerTool("v3_trading_quote", { title: "Create a signed V3 paper-stack quote", description: "Create a ten-minute signed quote for a duration and paper strategy. This does not authorize payment or provision resources. Show its exact expected charge and cap to the user before requesting approval.", inputSchema: { durationMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]), fastEma: z.number().int().min(2).optional(), slowEma: z.number().int().min(3).max(64).optional(), virtualBalanceUsd: z.number().positive().optional(), maxOrderNotionalUsd: z.number().positive().optional(), maxPositionNotionalUsd: z.number().positive().optional(), maxDailyLossUsd: z.number().positive().optional(), slippageBps: z.number().min(0).max(100).optional() } }, async ({ durationMinutes, ...strategy }) => ({ content: [{ type: "text", text: JSON.stringify(await quoteV3PaperTrading({ durationMinutes, strategy }), null, 2) }] }));
+server.registerTool("v3_trading_deploy", { title: "Deploy an approved V3 paper stack", description: "After the user explicitly approves the exact fresh quote, pay that expected amount in Base Sepolia testnet USDC and provision one idempotent 15, 30, or 60-minute paper-only stack. The authorization cap is never transferred; only expectedChargeUsd settles. Never call without explicit approval matching approvedExpectedChargeUsd.", inputSchema: { durationMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]), approvedExpectedChargeUsd: z.number().positive().describe("The exact expectedChargeUsd the user explicitly approved."), fastEma: z.number().int().min(2).optional(), slowEma: z.number().int().min(3).max(64).optional(), virtualBalanceUsd: z.number().positive().optional(), maxOrderNotionalUsd: z.number().positive().optional(), maxPositionNotionalUsd: z.number().positive().optional(), maxDailyLossUsd: z.number().positive().optional(), slippageBps: z.number().min(0).max(100).optional() } }, async ({ durationMinutes, approvedExpectedChargeUsd, ...strategy }) => ({ content: [{ type: "text", text: JSON.stringify(await deployV3PaperTrading({ durationMinutes, approvedExpectedChargeUsd, strategy }), null, 2) }] }));
 server.registerTool("v3_simulate_deployment", { title: "Prepare a no-money v3 provider showcase", description: "Prepare a protected MoonPay sandbox handoff and resource-plan preview. It creates no payment, cloud resource, or exchange order.", inputSchema: { productId: z.enum(["trading.paper.ema", "vm.small", "storage.small"]), durationMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]) } }, async ({ productId, durationMinutes }) => ({ content: [{ type: "text", text: JSON.stringify(await simulateV3Deployment({ productId, durationMinutes }), null, 2) }] }));
 server.registerTool("v3_simulation_status", { title: "Inspect a v3 checkout rehearsal", description: "Read a protected simulation’s mandate, payment, resource plan, expiry, and dashboard link. It is simulation-only.", inputSchema: { stackId: z.string() } }, async ({ stackId }) => ({ content: [{ type: "text", text: JSON.stringify(await v3SimulationStatus(stackId), null, 2) }] }));
 server.registerTool("v3_simulation_control", { title: "Advance or control a v3 checkout rehearsal", description: "Simulate explicit approval, sandbox funding, provisioning, stop/resume, shutdown, or cancellation. This never transfers funds or calls GCP.", inputSchema: { stackId: z.string(), action: z.enum(["approve", "fund", "provision", "stop", "resume", "shutdown", "cancel"]) } }, async ({ stackId, action }) => ({ content: [{ type: "text", text: JSON.stringify(await controlV3Simulation(stackId, action), null, 2) }] }));
@@ -99,6 +103,25 @@ server.registerTool("sandbox_status", { title: "Read a sandbox checkout and paym
   const simulation = await v3SimulationStatus(receipt.stackId);
   const refreshed = updateSandboxReceipt(receipt.checkoutId, { status: String(simulation.status ?? "unknown"), paymentStatus: String(simulation.paymentStatus ?? "unknown"), dashboardUrl: typeof simulation.dashboardUrl === "string" ? simulation.dashboardUrl : receipt.dashboardUrl, event: "status_observed", detail: `Simulation reported ${String(simulation.status ?? "unknown")}.` }) ?? receipt;
   return { content: [{ type: "text", text: JSON.stringify({ receipt: refreshed, simulation, allReceipts: listSandboxReceipts().length }, null, 2) }] };
+});
+
+server.registerTool("moonpay_showcase", { title: "Open the hosted MoonPay sandbox showcase", description: "After the user chooses the real-money on-ramp showcase, create one local simulation plan, obtain MoonPay's official hosted sandbox URL, and open it from this MCP session. The tool always returns the URL even if desktop launch is unavailable. It stops before payment, x402 settlement, GCP provisioning, dashboard creation, or trading.", inputSchema: { intent: z.string().min(3).max(2_000), durationMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]).default(15), openBrowser: z.boolean().default(true) } }, async ({ intent, durationMinutes, openBrowser }) => {
+  const plan = createSandboxPlan(intent, { durationMinutes });
+  const existing = getSandboxReceiptForPlan(plan.planId);
+  const simulation = existing
+    ? await v3SimulationStatus(existing.stackId)
+    : await simulateV3Deployment({ productId: plan.productId, durationMinutes: plan.durationMinutes, payer: plan.walletAddress, requestId: plan.planId });
+  if (!existing) saveSandboxReceipt({ checkoutId: `checkout-${simulation.stackId}`, planId: plan.planId, stackId: simulation.stackId, createdAt: new Date().toISOString(), status: String(simulation.status ?? "checkout"), paymentStatus: String(simulation.paymentStatus ?? "not_authorized"), trace: [{ at: new Date().toISOString(), event: "moonpay_showcase_created", detail: "MoonPay sandbox handoff prepared; no payment or infrastructure action was started." }] });
+  const availability = await moonPayAvailability();
+  if (!availability.enabled) throw new Error(availability.note);
+  const moonpay = await moonPayCheckout(simulation.stackId);
+  let browserOpened = false;
+  let browserNote = "Browser opening was not requested.";
+  if (openBrowser) {
+    try { openExternalUrl(moonpay.checkoutUrl); browserOpened = true; browserNote = "MoonPay sandbox was opened by the local MCP process."; }
+    catch (error) { browserNote = (error as Error).message; }
+  }
+  return { content: [{ type: "text", text: JSON.stringify({ mode: "moonpay-sandbox-showcase", checkoutUrl: moonpay.checkoutUrl, browserOpened, browserNote, walletAddress: plan.walletAddress, network: moonpay.network, asset: moonpay.asset, stopAfterRedirect: true, safety: "No payment result is consumed and no GCP resource or trade can follow." }, null, 2) }] };
 });
 
 server.registerTool(

@@ -36,9 +36,11 @@ function resolveIntent(intent: string): { productId: V3ProductId; durationMinute
   return { productId, durationMinutes };
 }
 
-export function createSandboxPlan(intent: string): SandboxPlan {
+export function createSandboxPlan(intent: string, options: { durationMinutes?: V3DurationMinutes } = {}): SandboxPlan {
   if (!intent.trim()) throw new Error("Describe the infrastructure you want to plan.");
-  const { productId, durationMinutes } = resolveIntent(intent);
+  const resolved = resolveIntent(intent);
+  const productId = resolved.productId;
+  const durationMinutes = options.durationMinutes ?? resolved.durationMinutes;
   const account = sandboxAccount();
   const quote = v3Quote(productId, durationMinutes);
   const plan: SandboxPlan = { planId: `plan-${randomUUID()}`, createdAt: new Date().toISOString(), intent: intent.trim(), productId, durationMinutes, walletAddress: account.address, quote, resources: v3ResourceBreakdown(quote), provider: paymentProviderInfo(config.paymentProvider) };

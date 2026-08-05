@@ -14,9 +14,28 @@ export interface TradingReceipt {
   resources?: Record<string, string>;
   costBreakdown?: Array<Record<string, unknown>>;
   costSummary?: Record<string, unknown>;
+  quoteId?: string;
+  durationMinutes?: 15 | 30 | 60;
+  expectedChargeUsd?: number;
+  authorizationCapUsd?: number;
+  settledAmountUsd?: number;
+  unusedAuthorizationUsd?: number;
   requestId?: string;
   configJson?: string;
   savedAt: string;
+}
+
+export function isV3TradingReceipt(receipt: TradingReceipt): receipt is TradingReceipt & {
+  quoteId: string;
+  durationMinutes: 15 | 30 | 60;
+  expectedChargeUsd: number;
+  authorizationCapUsd: number;
+  settledAmountUsd: number;
+  unusedAuthorizationUsd: number;
+} {
+  return typeof receipt.quoteId === "string"
+    && [15, 30, 60].includes(Number(receipt.durationMinutes))
+    && [receipt.expectedChargeUsd, receipt.authorizationCapUsd, receipt.settledAmountUsd, receipt.unusedAuthorizationUsd].every((value) => typeof value === "number" && Number.isFinite(value));
 }
 
 interface PendingTradingDeployment {
