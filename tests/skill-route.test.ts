@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { publicSkillOrigin, renderSkillForOrigin } from "../proxy/lib/skill.js";
+import { publicSkillOrigin, renderSkillForOrigin, shouldServeV3Skill } from "../proxy/lib/skill.js";
 import { readFile } from "node:fs/promises";
 
 test("hosted skill advertises the replica origin", () => {
@@ -16,6 +16,12 @@ test("hosted skill prefers PUBLIC_BASE_URL over the container listener", () => {
     publicSkillOrigin("https://0.0.0.0:8080/skill", "https://preview.example.run.app/"),
     "https://preview.example.run.app",
   );
+});
+
+test("gated V3 testnet deployments publish the V3 skill without preview-only middleware", () => {
+  assert.equal(shouldServeV3Skill({ v3PreviewOnly: true, v3TestnetDeploymentEnabled: false }), true);
+  assert.equal(shouldServeV3Skill({ v3PreviewOnly: false, v3TestnetDeploymentEnabled: true }), true);
+  assert.equal(shouldServeV3Skill({ v3PreviewOnly: false, v3TestnetDeploymentEnabled: false }), false);
 });
 
 test("dedicated preview skill uses the unified native MCP instead of V2 fallback", async () => {
