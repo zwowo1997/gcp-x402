@@ -202,7 +202,7 @@ export function simulateV3Deployment(input: { productId: V3ProductId; durationMi
     onramp: { provider: "coinbase-sandbox", state: "not_started", applePay: "available_in_simulation", kyc: "not_checked", qrPayload: `coinbase-sandbox://onramp/${mandate.mandateId}` },
     resources: v3ResourceBreakdown(quote),
     telemetry: { market: [], strategy: { name: "BTC EMA hedge (paper)", fastEma: 0, slowEma: 0, signal: "warming_up", virtualEquityUsd: 10_000, positionNotionalUsd: 0, sessionPnlUsd: 0 }, orders: [] },
-    timeline: [{ state: "checkout_created", at: now.toISOString(), detail: "Embedded-wallet and Apple Pay checkout rehearsal created. No wallet, card, KYC record, payment, or cloud resource exists." }],
+    timeline: [{ state: "showcase_created", at: now.toISOString(), detail: "Provider handoff showcase prepared. No wallet, card, KYC record, payment, or cloud resource exists; no trade can follow." }],
     warning: "Simulation — no money transferred and no cloud resources created. Coinbase, x402 v2 settlement, and Hyperliquid execution remain feature-gated.",
   };
 }

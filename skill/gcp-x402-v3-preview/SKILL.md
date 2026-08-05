@@ -1,63 +1,76 @@
 ---
 name: gcp-x402-v3-preview
-description: Rehearse a private-beta, no-wallet checkout for temporary GCP infrastructure and a paper-only Hyperliquid stack. Use for internal demos involving Apple Pay, Coinbase-style onramp, or cloud infrastructure without a GCP account. This preview never charges money or creates cloud/trading resources.
+description: Set up a paper-only Hyperliquid or temporary GCP demo without the user owning a GCP account. Always offer two payment experiences first: an end-to-end Base Sepolia x402 route using testnet USDC, or a real-money on-ramp showcase that opens MoonPay sandbox and stops before payment or provisioning.
 ---
 
-# gcp-x402 v3 preview
+# gcp-x402 payment choice
 
-Use only this isolated v3 simulation workflow. Never invoke legacy commands such as `wallet`, `query`, `provision`, `trading-deploy`, or any x402 payment flow from this skill.
+Work from the user's exact working directory (their current project directory). Before running payment or deployment commands, ask:
 
-This is a realistic interface rehearsal. It does not provision tenant resources, subscribe to Hyperliquid, or place an order. If the operator has enabled `moonpay-test`, the hosted MoonPay test UI may simulate KYC and payment and deliver an Ethereum Sepolia test asset; it still cannot settle Base Sepolia x402 or create cloud resources.
+> Which payment experience do you want?
+> 1. **Testnet USDC** — complete the established Base Sepolia x402 flow and create the one-hour paper stack.
+> 2. **Real-money on-ramp showcase** — open MoonPay's hosted sandbox login and stop there. No charge, x402 settlement, GCP resource, dashboard, or trade follows.
 
-## Start a safe sandbox in the user's current project
+If the user already chose one, do not ask again. Never combine the routes or treat MoonPay completion as authorization for the testnet deployment.
 
-Before checkout, determine and print the user's exact working directory. Ask them to initialize the local test wallet there. It creates no real wallet balance, payment, cloud resource, or trade:
+## Option 1: Base Sepolia testnet USDC
 
-```bash
-cd "<CURRENT_PROJECT_DIRECTORY>"
-npx -y github:zwowo1997/gcp-x402 setup --sandbox
-```
+This is the only end-to-end provisioning route. It uses the V2 Tokyo service and testnet USDC.
 
-The command returns the assigned test-only Base Sepolia address and virtual USDC balance. Do not request a private key, card information, KYC information, or a real wallet. The private-beta unlock is needed only when creating the protected checkout.
-
-## Rehearse the journey
-
-1. Turn the user’s intent into exactly one allowlisted plan:
-
-   ```bash
-   npx -y github:zwowo1997/gcp-x402 plan "<USER_INTENT>"
-   ```
-
-2. Explain the selected duration, expected simulated settlement, authorization cap, test wallet address, and exact estimated service allocation. Ask once for approval to begin the free rehearsal.
-3. After approval, unlock from the same exact directory. The private-beta operator gives the password to authorized testers; never reveal, guess, store, or embed it:
+1. Unlock in the exact directory:
 
    ```bash
    cd "<CURRENT_PROJECT_DIRECTORY>"
    PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 unlock
    ```
 
-4. Create exactly one checkout from the returned `planId`:
+2. Inspect the wallet and profile:
 
    ```bash
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 checkout <PLAN_ID>
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 wallet
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 trading-catalog
    ```
 
-5. Return the `dashboardUrl` immediately. If the response includes `moonpay.checkoutUrl`, give it to the user as a separate **MoonPay test checkout** link. MoonPay owns the payment UI; never collect card, KYC, or wallet credentials. State that it targets Ethereum Sepolia test assets and does not fund Base Sepolia or provision GCP.
-6. Let the user operate the checkout from the dashboard. If they ask the agent to inspect it, use only the returned checkout ID with:
+3. If needed, ask the user to fund the displayed address with Base Sepolia USDC. Never request a private key. State that the stack is paper-only, expires in one hour, and costs at most `$5.00` testnet USDC. Obtain explicit approval once.
+4. After funding and approval, invoke exactly once:
 
    ```bash
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 status <CHECKOUT_ID>
-   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app npx -y github:zwowo1997/gcp-x402 debugger <CHECKOUT_ID>
+   PROXY_URL=https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app MAX_PAYMENT_USD=5.00 npx -y github:zwowo1997/gcp-x402 trading-deploy
    ```
 
-Do not create a second checkout to recover a timeout. Query the first checkout with `status`. Never ask the user for an EVM address, wallet funding, GCP credentials, card details, or KYC information.
+Do not retry with a new request. On uncertain output, run `trading-receipts`; then resume ordinary `trading-deploy` at most once so it reuses the pending idempotency key. Never use `--new` unless the user explicitly requests and approves another independent stack.
 
-## Successful handoff
+After success, return the monitoring dashboard and list every provisioned GCP service, resource name, region, estimated one-hour allocation, x402 payment, estimated GCP usage, and service/risk buffer from the receipt. The dashboard is for strategy telemetry, GCP resources, costs, lease status, and stop/resume/shutdown controls—not payment or wallet UI.
 
-Report:
+## Option 2: MoonPay on-ramp showcase
 
-- the dashboard URL and expiry;
-- simulation status and simulated payment status;
-- each displayed GCP service, region, role, and estimated allocation;
-- the expected simulated final settlement and maximum authorization;
-- the explicit statement: “No money transferred and no cloud or trading resources were created.”
+This route demonstrates provider-owned card/Apple Pay/KYC UX. It must stop immediately after redirecting to MoonPay sandbox.
+
+1. Prepare one local plan:
+
+   ```bash
+   cd "<CURRENT_PROJECT_DIRECTORY>"
+   npx -y github:zwowo1997/gcp-x402 setup --sandbox
+   npx -y github:zwowo1997/gcp-x402 plan "<USER_INTENT>"
+   ```
+
+2. Unlock the V3 preview from the same directory:
+
+   ```bash
+   PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 unlock
+   ```
+
+3. Ask the user to run this in their interactive terminal so they see the top-up screen and control the browser handoff:
+
+   ```bash
+   PROXY_URL=https://gcp-x402-v3-preview.example.invalid npx -y github:zwowo1997/gcp-x402 topup moonpay <PLAN_ID>
+   ```
+
+The command may open only `https://buy-sandbox.moonpay.com`. Once MoonPay login opens, report success and stop. Do not wait for payment, inspect KYC, call `checkout`, advance V3 simulation state, invoke x402, deploy resources, or return a dashboard. Clearly state that MoonPay test assets are on Ethereum Sepolia and do not fund Base Sepolia.
+
+## Safety
+
+- Never collect card details, KYC data, seed phrases, or private keys.
+- MoonPay sandbox and Base Sepolia x402 are separate demonstrations.
+- The MoonPay route cannot provision or trade.
+- The testnet route provisions billable operator-owned GCP resources only after explicit approval and automatically expires them after one hour.

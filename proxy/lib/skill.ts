@@ -2,9 +2,13 @@ const knownServiceUrls = [
   "https://gcp-x402-tokyo-837831206506.asia-northeast1.run.app",
   "https://gcp-x402-837831206506.us-central1.run.app",
 ];
+const previewPlaceholder = "https://gcp-x402-v3-preview.example.invalid";
 
 export function renderSkillForOrigin(markdown: string, origin: string): string {
   const normalizedOrigin = origin.replace(/\/$/, "");
+  if (/^name:\s*gcp-x402-v3-preview\s*$/m.test(markdown)) {
+    return markdown.replaceAll(previewPlaceholder, normalizedOrigin);
+  }
   return knownServiceUrls.reduce(
     (rendered, serviceUrl) => rendered.replaceAll(serviceUrl, normalizedOrigin),
     markdown,
