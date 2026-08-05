@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { BETA_SESSION_HEADER, requireBetaSession } from "@/lib/beta";
-import { issueResourceCapability } from "@/lib/capability";
+import { issueDashboardAccess, issueResourceCapability } from "@/lib/capability";
 import { scheduleTradingCleanup } from "@/lib/cleanup";
 import { config } from "@/lib/config";
 import { addTradingEvent, findTradingStackByRequestKey, reserveTradingStack, saveTradingStack } from "@/lib/trading/store";
@@ -18,7 +18,9 @@ export const runtime = "nodejs";
 
 function responseFor(stack: TradingStackRecord, betaSession: string): NextResponse {
   const capability = issueResourceCapability(stack.id, stack.payer);
-  const dashboardUrl = config.tradingDashboardUrl ? `${config.tradingDashboardUrl}/strategy/${stack.id}#capability=${encodeURIComponent(capability)}&session=${encodeURIComponent(betaSession)}` : undefined;
+  const dashboard = config.tradingDashboardUrl ? new URL(`/strategy/${stack.id}`, config.tradingDashboardUrl) : undefined;
+  if (dashboard) dashboard.searchParams.set("access", issueDashboardAccess(stack.id, stack.payer, stack.expiresAt));
+  const dashboardUrl = dashboard?.toString();
   const durationMinutes = stack.durationMinutes ?? 60;
   const settledAmountUsd = stack.settledAmountUsd;
   return NextResponse.json({

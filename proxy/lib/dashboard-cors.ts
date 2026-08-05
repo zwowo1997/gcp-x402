@@ -12,7 +12,7 @@ export function withDashboardCors(req: NextRequest, response: NextResponse): Nex
   const origin = allowedOrigin(req);
   if (!origin) return response;
   response.headers.set("access-control-allow-origin", origin);
-  response.headers.set("access-control-allow-headers", "content-type, x-gcp-x402-session, x-resource-capability");
+  response.headers.set("access-control-allow-headers", "content-type, x-gcp-x402-session, x-resource-capability, x-dashboard-access");
   response.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
   response.headers.set("access-control-max-age", "600");
   response.headers.set("vary", "Origin");
