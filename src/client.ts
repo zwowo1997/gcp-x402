@@ -12,22 +12,29 @@ import { networkById, type ClientNetwork } from "./networks.js";
 import { betaSessionToken, saveBetaSession } from "./beta-session.js";
 import { lockedServiceHelp } from "./project-context.js";
 import { clearPendingTradingRequest, isV3TradingReceipt, pendingTradingRequestId, recentTradingReceipt, saveTradingReceipt, tradingConfigJson, type TradingReceipt } from "./trading-receipt.js";
-import { boundedFetch } from "./network.js";
+import { boundedFetch, DEPLOYMENT_TIMEOUT_MS } from "./network.js";
 
 // Cap what the wrapper will auto-pay without a fresh decision, in USDC base
 // units (6 decimals). A hard backstop against a mispriced/hostile quote.
 const maxAutoPayBaseUnits = BigInt(Math.ceil(config.maxPaymentUsd * 1e6));
 
-const serviceFetch: typeof fetch = (input, init = {}) => {
-  const headers = new Headers(init.headers);
-  const session = betaSessionToken();
-  if (session) headers.set("x-gcp-x402-session", session);
-  return boundedFetch(input, { ...init, headers });
-};
+function serviceFetchWithTimeout(timeoutMs?: number): typeof fetch {
+  return (input, init = {}) => {
+    const headers = new Headers(init.headers);
+    const session = betaSessionToken();
+    if (session) headers.set("x-gcp-x402-session", session);
+    return boundedFetch(input, { ...init, headers }, timeoutMs);
+  };
+}
+
+const serviceFetch: typeof fetch = serviceFetchWithTimeout();
+
+/** Deployment creates three Cloud Run services and can exceed ordinary API latency. */
+const deploymentServiceFetch: typeof fetch = serviceFetchWithTimeout(DEPLOYMENT_TIMEOUT_MS);
 
 /** Create/load a wallet only for an operation that can actually pay. */
-function paidFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
-  return wrapFetchWithPayment(serviceFetch, getAccount(), maxAutoPayBaseUnits)(input, init);
+function paidFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1], fetchImpl: typeof fetch = serviceFetch) {
+  return wrapFetchWithPayment(fetchImpl, getAccount(), maxAutoPayBaseUnits)(input, init);
 }
 
 async function serviceError(response: Response, operation: string): Promise<Error> {
@@ -299,7 +306,7 @@ export async function deployV3PaperTrading(input: { quoteToken: string; userAppr
   const requestId = pendingTradingRequestId(requestInput, randomUUID);
   const res = await paidFetch(new URL("/api/v3/trading/deploy", config.proxyUrl), {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteToken: input.quoteToken }),
-  });
+  }, deploymentServiceFetch);
   const text = await res.text();
   if (!res.ok) {
     const terminal = (res.status === 409 && text.includes("finished without a reusable result")) || (res.status === 502 && text.includes("provisioning failed"));

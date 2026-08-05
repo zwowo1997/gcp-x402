@@ -1,4 +1,5 @@
-const DEFAULT_TIMEOUT_MS = 15_000;
+export const DEFAULT_TIMEOUT_MS = 15_000;
+export const DEPLOYMENT_TIMEOUT_MS = 180_000;
 
 function requestHostname(input: Parameters<typeof fetch>[0]): string {
   try {

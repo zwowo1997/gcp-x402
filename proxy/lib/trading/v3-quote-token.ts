@@ -11,7 +11,8 @@ export function signV3TradingQuote(payload: V3TradingQuotePayload, secret: strin
   return `${body}.${signature(body, secret)}`;
 }
 
-export function verifyV3TradingQuoteToken(token: string, secret: string, now = new Date()): V3TradingQuotePayload | null {
+/** Authenticate the signed payload for idempotent recovery, even after quote expiry. */
+export function authenticateV3TradingQuoteToken(token: string, secret: string): V3TradingQuotePayload | null {
   const dot = token.lastIndexOf(".");
   if (dot < 1 || !secret) return null;
   const body = token.slice(0, dot);
@@ -20,8 +21,15 @@ export function verifyV3TradingQuoteToken(token: string, secret: string, now = n
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as V3TradingQuotePayload;
-    return verifyV3TradingQuotePayload(payload, now) ? payload : null;
+    const { requestHash, ...unsigned } = payload;
+    const structuralNow = new Date(new Date(payload.expiresAt).getTime() - 1);
+    return requestHash && verifyV3TradingQuotePayload({ ...unsigned, requestHash }, structuralNow) ? payload : null;
   } catch {
     return null;
   }
+}
+
+export function verifyV3TradingQuoteToken(token: string, secret: string, now = new Date()): V3TradingQuotePayload | null {
+  const payload = authenticateV3TradingQuoteToken(token, secret);
+  return payload && verifyV3TradingQuotePayload(payload, now) ? payload : null;
 }

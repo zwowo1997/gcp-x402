@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createV3TradingQuotePayload } from "../src/v3-contracts.js";
-import { signV3TradingQuote, verifyV3TradingQuoteToken } from "../proxy/lib/trading/v3-quote-token.js";
+import { authenticateV3TradingQuoteToken, signV3TradingQuote, verifyV3TradingQuoteToken } from "../proxy/lib/trading/v3-quote-token.js";
 
 const now = new Date("2026-08-05T12:00:00.000Z");
 const payload = createV3TradingQuotePayload({
@@ -20,4 +20,6 @@ test("V3 trading quote token is authenticated and expires", () => {
   assert.equal(verifyV3TradingQuoteToken(`${token.slice(0, -1)}x`, "test-secret", now), null);
   assert.equal(verifyV3TradingQuoteToken(token, "wrong-secret", now), null);
   assert.equal(verifyV3TradingQuoteToken(token, "test-secret", new Date("2026-08-05T12:10:00.000Z")), null);
+  assert.deepEqual(authenticateV3TradingQuoteToken(token, "test-secret"), payload);
+  assert.equal(authenticateV3TradingQuoteToken(`${token.slice(0, -1)}x`, "test-secret"), null);
 });
