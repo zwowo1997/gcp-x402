@@ -5,7 +5,7 @@ import { paymentProviderInfo } from "../src/payment-provider.js";
 
 test("v3 quotes are duration-aware, capped, and charge only the expected final amount", () => {
   assert.deepEqual(v3Quote("trading.paper.ema", 15), {
-    productId: "trading.paper.ema", durationMinutes: 15, estimatedGcpUsd: 0.028521, serviceFeeUsd: 0.061479,
+    productId: "trading.paper.ema", durationMinutes: 15, estimatedGcpUsd: 0.029271, serviceFeeUsd: 0.060729,
     expectedChargeUsd: 0.09, authorizationCapUsd: 0.15, currency: "USDC", settlement: "provision-then-settle", unusedAuthorization: "never-transferred",
   });
   assert.equal(v3Quote("vm.small", 30).expectedChargeUsd, 0.2);

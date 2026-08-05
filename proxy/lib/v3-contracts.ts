@@ -69,7 +69,9 @@ export function isV3Duration(value: number): value is V3DurationMinutes {
 }
 
 export function v3Quote(productId: V3ProductId, durationMinutes: V3DurationMinutes): V3Quote {
-  const estimatedGcpUsd = roundUsd(hourlyGcpEstimate[productId] * durationMinutes / 60);
+  const estimatedGcpUsd = productId === "trading.paper.ema"
+    ? roundUsd((hourlyGcpEstimate[productId] - 0.001) * durationMinutes / 60 + 0.001)
+    : roundUsd(hourlyGcpEstimate[productId] * durationMinutes / 60);
   const expectedChargeUsd = cents(estimatedGcpUsd * 1.2 + 0.05);
   const authorizationCapUsd = authorizationCaps[productId][durationMinutes];
   if (expectedChargeUsd > authorizationCapUsd) throw new Error("V3 payment plan exceeds its authorization cap.");
@@ -87,7 +89,7 @@ export function v3ResourceBreakdown(quote: V3Quote): V3Resource[] {
     return [{ service: quote.productId === "vm.small" ? "Compute Engine" : "Cloud Storage", region: "us-central1", action: "temporary allowlisted demo resource", estimatedUsd: quote.estimatedGcpUsd }];
   }
   const factor = quote.durationMinutes / 60;
-  const rows = tradingHourlyResources.map((item) => ({ ...item, estimatedUsd: roundUsd(item.estimatedUsd * factor) }));
+  const rows = tradingHourlyResources.map((item) => ({ ...item, estimatedUsd: roundUsd(item.estimatedUsd * (item.service === "Cloud Tasks" ? 1 : factor)) }));
   // Preserve an exact visible total after micro-dollar rounding.
   const difference = roundUsd(quote.estimatedGcpUsd - rows.reduce((sum, item) => sum + item.estimatedUsd, 0));
   rows[0].estimatedUsd = roundUsd(rows[0].estimatedUsd + difference);

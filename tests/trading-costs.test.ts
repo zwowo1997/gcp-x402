@@ -12,7 +12,7 @@ test("cost visibility lists every GCP product used by the stack", async () => {
   process.env.GCP_PROJECT_ID ||= "test-project";
   process.env.PAY_TO_ADDRESS ||= "0x0000000000000000000000000000000000000000";
   process.env.QUOTE_SECRET ||= "test-secret";
-  const { tradingCostBreakdown, tradingCostSummary } = await import("../proxy/lib/trading/costs.js");
+  const { reconcileV3TradingEstimate, tradingCostBreakdown, tradingCostSummary } = await import("../proxy/lib/trading/costs.js");
   const breakdown = tradingCostBreakdown(resources);
   const services = new Set(breakdown.map((item) => item.service));
   assert.deepEqual([...services], ["Cloud Run", "Pub/Sub", "Spanner", "Firebase Hosting", "Cloud Tasks"]);
@@ -20,8 +20,14 @@ test("cost visibility lists every GCP product used by the stack", async () => {
   const summary = tradingCostSummary(resources);
   assert.equal(summary.x402PaymentUsd, 5);
   assert.equal(summary.estimatedGcpUsageUsd, 0.114083);
-  assert.match(summary.estimateBasis, /1-hour GCP allocation/);
+  assert.match(summary.estimateBasis, /60-minute GCP allocation/);
   assert.ok(summary.estimatedGcpUsageUsd > 0 && summary.estimatedGcpUsageUsd < summary.x402PaymentUsd);
+  for (const durationMinutes of [15, 30, 60] as const) {
+    assert.equal(reconcileV3TradingEstimate(resources, durationMinutes), true);
+    const quoted = tradingCostSummary(resources, durationMinutes, durationMinutes === 15 ? 0.09 : durationMinutes === 30 ? 0.12 : 0.19);
+    assert.match(quoted.estimateBasis, new RegExp(`${durationMinutes}-minute`));
+    assert.ok(quoted.x402PaymentUsd < 5);
+  }
 });
 
 test("paper trading catalog advertises a one-hour lease", async () => {
