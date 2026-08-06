@@ -14,6 +14,7 @@ import { createSandboxPlan, getSandboxPlan, getSandboxReceipt, getSandboxReceipt
 import { paymentProviderInfo } from "./payment-provider.js";
 import { spawnSync } from "node:child_process";
 import { openExternalUrl, renderMoonPayTopup } from "./topup.js";
+import { openTradingDashboard } from "./dashboard.js";
 import { codexLaunchArguments, ensureNativeStateDirectory, isNestedCodexSession, nativeSessionEnvironment, NESTED_CODEX_START_ERROR } from "./launcher.js";
 
 const USAGE = `gcp-x402 — query BigQuery public datasets, paid per query in USDC (x402)
@@ -38,6 +39,7 @@ Commands:
   trading-control <id> <capability> <start|stop|resume|shutdown> Control a paper-trading stack.
   trading-receipt <id>   Recover a locally saved paid trading receipt/capability.
   trading-receipts       List locally saved trading deployment receipts.
+  dashboard <stack-id>   Open a private locally saved trading dashboard.
   v3-catalog             Show the v3 duration-aware, simulation-only payment plans.
   v3-trading-catalog     Show real Base Sepolia 15/30/60-minute paper-stack prices.
   v3-trading-quote <15|30|60>
@@ -146,6 +148,10 @@ export async function runCli(argv: string[]): Promise<number> {
     }
     case "receipts":
       console.log(JSON.stringify(listSandboxReceipts().map(sandboxReceiptSummary), null, 2));
+      return 0;
+    case "dashboard":
+      if (!argv[1]) return usageError("dashboard <stack-id>");
+      console.log(JSON.stringify({ opened: true, ...openTradingDashboard(argv[1]), credentialsExposed: false }, null, 2));
       return 0;
     case "start":
     case "codex":

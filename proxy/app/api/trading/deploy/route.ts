@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config";
 import { scheduleTradingCleanup } from "@/lib/cleanup";
-import { issueDashboardAccess, issueResourceCapability } from "@/lib/capability";
+import { issueResourceCapability } from "@/lib/capability";
 import { sha256, signQuote } from "@/lib/quote";
 import { buildRequirements, decodePaymentHeader, encodeSettlementHeader, paymentRequiredBody, settle, verify } from "@/lib/x402";
 import { PAPER_TRADING_PROFILE, defaultPaperConfig } from "@/lib/trading/catalog";
@@ -17,9 +17,7 @@ export const runtime = "nodejs";
 
 function deploymentResponse(stack: TradingStackRecord, betaSession: string): NextResponse {
   const capability = issueResourceCapability(stack.id, stack.payer);
-  const dashboard = config.tradingDashboardUrl ? new URL(`/strategy/${stack.id}`, config.tradingDashboardUrl) : undefined;
-  if (dashboard) dashboard.searchParams.set("access", issueDashboardAccess(stack.id, stack.payer, stack.expiresAt));
-  const dashboardUrl = dashboard?.toString();
+  const dashboardUrl = config.tradingDashboardUrl ? `${config.tradingDashboardUrl}/strategy/${stack.id}#capability=${encodeURIComponent(capability)}&session=${encodeURIComponent(betaSession)}` : undefined;
   return NextResponse.json({ stackId: stack.id, mode: "paper", region: config.tradingRegion, expiresAt: stack.expiresAt, maxPriceUsd: PAPER_TRADING_PROFILE.priceCeilingUsd, capability, dashboardUrl, resources: stack.resources, costBreakdown: tradingCostBreakdown(stack.resources), costSummary: tradingCostSummary(stack.resources), paperOnly: true });
 }
 
